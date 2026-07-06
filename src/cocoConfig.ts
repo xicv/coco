@@ -58,6 +58,67 @@ export const VERIFY_TEST_COMMAND_CHANGED_WARNING =
 export const VERIFY_NOT_CONFIGURED_WARNING =
   'coco.config.json has no verify.testCommand set — coco runs this itself at the verify gate (there is no agent fallback), so configure it before you get there';
 
+// --- Layer 2 auto-merge policy (coco.config.json → `autoMerge`) ---
+
+export interface AutoMergeConfig {
+  maxChangedLines: number; // block auto-merge above this many added+deleted lines
+  sensitiveGlobs: string[]; // any changed file matching one of these blocks auto-merge (→ human)
+  testGlobs: string[]; // a diff must touch at least one file matching these (else block)
+}
+
+/** Conservative defaults. Auto-merge is opt-in per goal; these only shape WHEN it's allowed once
+ * opted in. Deliberately broad on the sensitive side — false-blocks fall back to a human merge. */
+export const DEFAULT_AUTO_MERGE_CONFIG: AutoMergeConfig = {
+  maxChangedLines: 500,
+  sensitiveGlobs: [
+    'migrations/**',
+    '**/migrations/**',
+    '**/auth/**',
+    '**/*auth*',
+    '**/*secret*',
+    '**/*credential*',
+    'security/**',
+    '**/security/**',
+    'deployment/**',
+    '**/deployment/**',
+    '.github/workflows/**',
+    'Dockerfile*',
+    '**/Dockerfile*',
+    'docker-compose*.yml',
+    '**/docker-compose*.yml',
+  ],
+  testGlobs: ['**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/__tests__/**'],
+};
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => typeof x === 'string');
+}
+
+/** Parse the `autoMerge` block, merging partial user policy over defaults. Missing/malformed → defaults. */
+function parseAutoMergeConfig(raw: string): AutoMergeConfig {
+  try {
+    const a = (JSON.parse(raw) as { autoMerge?: Partial<AutoMergeConfig> })?.autoMerge;
+    if (!a || typeof a !== 'object') return DEFAULT_AUTO_MERGE_CONFIG;
+    return {
+      maxChangedLines:
+        typeof a.maxChangedLines === 'number' && a.maxChangedLines > 0
+          ? Math.floor(a.maxChangedLines)
+          : DEFAULT_AUTO_MERGE_CONFIG.maxChangedLines,
+      sensitiveGlobs: isStringArray(a.sensitiveGlobs) ? a.sensitiveGlobs : DEFAULT_AUTO_MERGE_CONFIG.sensitiveGlobs,
+      testGlobs: isStringArray(a.testGlobs) ? a.testGlobs : DEFAULT_AUTO_MERGE_CONFIG.testGlobs,
+    };
+  } catch {
+    return DEFAULT_AUTO_MERGE_CONFIG;
+  }
+}
+
+/** Read the auto-merge policy as committed AT `ref` (always the goal BASE, never HEAD) so a branch
+ * cannot relax the policy that governs its own auto-merge. Missing config → conservative defaults. */
+export function readAutoMergePolicyAtRef(repo: string, ref: string): AutoMergeConfig {
+  const r = tryGit(repo, ['show', `${ref}:coco.config.json`]);
+  return r.ok ? parseAutoMergeConfig(r.out) : DEFAULT_AUTO_MERGE_CONFIG;
+}
+
 /** Non-blocking warnings about a goal branch's verification policy (surfaced, never gated). Emitted
  * at goal-start and every cycle, so a missing verify.testCommand is discoverable up front rather than
  * only when the loop reaches the verify gate. */
