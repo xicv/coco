@@ -5,9 +5,9 @@ description: Use when the user types $coco-loop or /coco-loop, or says "start a 
 
 # coco-loop
 
-Drive one development goal through **plan → implement → review → fix → verify → (human merge)**. You are the **hands**; **Oracle** (`consult`, GPT-5.5-Pro) is the **brain**; the **coco** MCP tools are the **referee** that tells you the next step and refuses unsafe ones. The **human** owns the merge.
+Drive one development goal through **plan → implement → review → fix → verify → (human merge)**. You are the **hands**; **Oracle** (`consult`, GPT-5.5-Pro) is the **brain**; the **coco** MCP tools are the **referee** that tells you the next step and refuses unsafe ones. The **human** owns the merge — either per-merge, or as forward consent for auto-merge via `--auto`.
 
-Invoke: `$coco-loop <objective>` (Codex) / `/coco-loop <objective>` (Claude Code).
+Invoke: `$coco-loop <objective>` (Codex) / `/coco-loop <objective>` (Claude Code). Add `--auto` (`$coco-loop --auto <objective>`) to grant forward consent for auto-merge on THIS goal — an opt-in that still merges only if the change comes back clean + verified + rebased + within the risk policy (Layer 2).
 
 ## Golden rules (do not deviate)
 
@@ -16,7 +16,7 @@ Invoke: `$coco-loop <objective>` (Codex) / `/coco-loop <objective>` (Claude Code
 3. **Chain `expectedSha`** for `coco_goal_record` from the `headSha` in the most recent `coco_goal_status` (or the status returned by the previous record).
 4. **Commit before review/verify.** The referee refuses review/verify on a dirty tree.
 5. **Oracle verdict is strict.** Your review consult MUST end with a line exactly `VERDICT: clean` or `VERDICT: blocking`. Pass Oracle's raw output as `reviewOutput` — coco parses it. If Oracle is unreachable, errors, times out, or the verdict is missing/ambiguous: **retry ONCE; if it still fails, call `coco_goal_oracle_unavailable({ goalId, phase:"plan"|"review", reason, attempts })`, then STOP and tell the user.** Never invent a verdict. coco marks the goal `review-unavailable` → `escalate-human` and refuses merge, so the loop pauses durably (never false-green). After the user resolves Oracle (re-login / restart), `coco_goal_op_clear({ goalId })` to resume.
-6. **You never merge.** At `merge-gate` you STOP and hand the human the exact command.
+6. **You never merge without consent.** At `merge-gate`, if the goal opted in (`autoMergeAllowed`, from `$coco-loop --auto`) call `coco_merge` — it merges ONLY when green + rebased + within risk policy, else it returns you to the human path. Otherwise (or on a `human-merge` fallback) present the merge card and **propose** the exact `coco merge --goal <goalId>` command as an executable step so the harness's approval prompt gates it. Never bundle a merge silently, never request an always-allow, and never proceed past a declined or unexecuted merge.
 7. **Wrap long Oracle ops.** Right before a long Oracle consult (plan/review), call `coco_goal_op_start({ repoDir, goalId, phase, kind:"oracle" })` so `coco_health` reads `operation-in-progress` instead of misreading the pause as `stalled`. The matching `coco_goal_record` clears it (or `coco_goal_op_clear` if you abort). (**verify is coco-owned** — `coco_goal_verify_start` handles its own in-flight marker; don't op-start it.) An op still in flight after 1h → `in-flight-timeout`.
 8. **Run Oracle review consults in a subagent.** A browser `consult` returns a large payload (minutes of `[browser] Waiting…` polling breadcrumbs + the full transcript) that rots the driver context. Dispatch the review consult to a general-purpose subagent whose whole job is: run the `consult`, then return ONLY `{ verdict, findings[], verdictBlock }` — `verdictBlock` is the answer text through the final `VERDICT:` line (pass it verbatim as `reviewOutput` so coco parses server-side), `findings[]` is one line each. The polling noise and the ~80 KB transcript stay in the subagent; coco persists verdict+findings as event evidence, so the driver keeps everything that matters and none of the noise. (The raw transcript stays at `~/.oracle/sessions/<slug>/artifacts/transcript.md` — never `Read` it into the driver.)
 
@@ -24,7 +24,7 @@ Invoke: `$coco-loop <objective>` (Codex) / `/coco-loop <objective>` (Claude Code
 
 1. `coco_init({ repoDir })`.
 2. **Objective:** if the user gave one, use it. If not, call `coco_next({ repoDir })` — if it returns a task, use its `title` + `body` as the objective and remember its `id` (the backlog task); if it returns `null`, tell the user the backlog has nothing ready and stop.
-3. `coco_goal_start({ repoDir, objective, acceptanceChecks?, maxFixRounds?, backlogTaskId? })` → `goalId`. If step 2 came from the backlog, pass its `id` as `backlogTaskId` so it's stored on the goal (durable across session drops).
+3. `coco_goal_start({ repoDir, objective, acceptanceChecks?, maxFixRounds?, backlogTaskId?, autoMergeAllowed? })` → `goalId`. If step 2 came from the backlog, pass its `id` as `backlogTaskId` so it's stored on the goal (durable across session drops). Pass `autoMergeAllowed: true` ONLY if the user invoked with `--auto` (forward consent for Layer 2 auto-merge).
 4. **Pack the context brief + ground with background (best-effort).** Right after `goalId`, assemble the brief the `plan` consult will read:
    - **Background — default is the current context.** Unless the user gave a file, distill the **current conversation/session** — the intent, decisions, constraints, and relevant file paths you just established with the user — into a short structured block (**Goal / Approach / Constraints / Relevant files**) and pipe it through the **same bounder** so it's capped, not pasted unbounded: `printf '%s' "<block>" | coco-store pack --goal <goalId> --query "<objective>" --background-stdin`. This grounds the loop in what was just discussed instead of planning blind. Keep it to what you actually established with the user; don't paste raw file dumps or secrets.
    - **Background — from a file.** If the user pointed you at a doc, pass it through the deterministic bounder: `coco-store pack --goal <goalId> --query "<objective>" --background <file>`. pack requires the file to resolve **inside the repo** (it refuses outside/symlinked/secret-looking/binary files — the brief is sent to Oracle), head-bounds it (~150 lines / 6 KB), labels its freshness (`untracked` / `uncommitted local edits` / `[STALE?]`), and places it **first** in the brief.
@@ -40,13 +40,22 @@ Invoke: `$coco-loop <objective>` (Codex) / `/coco-loop <objective>` (Claude Code
    - **`commit-or-revert`** → commit the work or discard it, then re-status.
    - **`rebase-needed`** → rebase the branch onto `main`, then re-status (expect fresh review/verify — content changed).
    - **`escalate-human`** / **`stuck`** (via `coco_health`) → STOP, summarize the blocker for the user.
-   - **`merge-gate`** → STOP. Present a short summary of the change + Oracle's ready verdict, then tell the user:
+   - **`merge-gate`** → STOP the loop. First read `status.autoMergeAllowed`:
 
-     > Ready to merge. Run this in `<repoDir>` when you're happy: `coco merge --goal <goalId>`
+     **If `autoMergeAllowed` (the goal opted in via `--auto`):** try the auto-merge — `coco_merge({ repoDir, goalId, expectedSha:<status.headSha> })`:
+       - `{ merged:true, mergedSha }` → **announce the merged SHA**, then go to step 6.
+       - `{ merged:false, next:"continue-loop", reason }` → a transient gate (rebase / re-review / re-verify): re-`coco_goal_status` and resolve — do NOT hand to a human.
+       - `{ merged:false, next:"human-merge", reason }` → consent/risk sent it back to a human (e.g. sensitive paths, oversized diff, no tests). Fall through to the human path and surface `reason`.
 
-     Do not attempt to merge yourself — there is no merge tool, and that is intentional (your consent is the checkpoint).
+     **Human path (default, or after a `human-merge` fallback):** present the **merge card** — `goalId`, `repoDir`, target branch (`<base>`), HEAD SHA, `review: clean`, `verify: pass` (plus any auto-merge `reason`) — then **propose the exact command as an executable step** (this is the consent checkpoint):
 
-6. After the human merges, `coco_goal_status` reports the goal `achieved`. If its `backlogTaskId` is set, call `coco_done({ repoDir, taskId: <status.backlogTaskId> })` to mark the backlog task done. Then optionally `coco_next` to surface the next task — but **stop** and let the human decide whether to start it (they hold the context advantage on what's next).
+     `coco merge --goal <goalId>`  *(runs in `<repoDir>`)*
+
+     - The human approving that command **is** the merge consent — you run the CLI *only* under that approval. Keep `--goal <goalId>` in the command so approval is per-goal, never blanket.
+     - `coco merge` prints JSON and **always exits 0 — read the payload, not the exit code**: `{"merged":true}` → step 6; `{"merged":false,"reason":"…"}` → surface + STOP, re-`coco_goal_status` and resolve (don't retry blindly); non-zero / thrown (e.g. `no active goal`) → STOP and surface.
+     - **Auto-approve caveat:** in a no-prompt / bypass harness this runs with no human pause — i.e. it becomes auto-merge *without* the `--auto` opt-in. If you know the session auto-approves, tell the human before proposing.
+
+6. After the merge, `coco_goal_status` reports the goal `achieved`. If its `backlogTaskId` is set, call `coco_done({ repoDir, taskId: <status.backlogTaskId> })` to mark the backlog task done. Then optionally `coco_next` to surface the next task — but **stop** and let the human decide whether to start it (they hold the context advantage on what's next).
 
 ## Health & recovery
 
