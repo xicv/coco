@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import { initRepo } from '../src/commands/init.js';
 import { goalStart } from '../src/commands/goalStart.js';
-import { goalPath } from '../src/state.js';
+import { goalPath, readGoal } from '../src/state.js';
 import { currentBranch } from '../src/git.js';
 import { tmpRepo } from './helpers.js';
 
@@ -34,4 +34,16 @@ test('goal start refuses when a goal is already active', () => {
   initRepo(repo);
   goalStart(repo, { objective: 'first', maxFixRounds: 5, acceptanceChecks: [] });
   expect(() => goalStart(repo, { objective: 'second', maxFixRounds: 5, acceptanceChecks: [] })).toThrow(/active/);
+});
+
+test('goal start persists autoMergeAllowed only when requested (forward consent)', () => {
+  const on = tmpRepo();
+  initRepo(on);
+  const a = goalStart(on, { objective: 'auto on', maxFixRounds: 5, acceptanceChecks: [], autoMergeAllowed: true }).goalId;
+  expect(readGoal(goalPath(on, a)).autoMergeAllowed).toBe(true);
+
+  const off = tmpRepo();
+  initRepo(off);
+  const b = goalStart(off, { objective: 'auto off', maxFixRounds: 5, acceptanceChecks: [] }).goalId;
+  expect(readGoal(goalPath(off, b)).autoMergeAllowed).toBeUndefined();
 });

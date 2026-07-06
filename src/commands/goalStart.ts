@@ -16,6 +16,7 @@ export interface StartOptions {
   maxFixRounds: number;
   acceptanceChecks: string[];
   backlogTaskId?: string;
+  autoMergeAllowed?: boolean; // forward consent for Layer 2 auto-merge (from `$coco-loop --auto` / `coco goal start --auto-merge`)
   budget?: GoalBudget;
   now?: Date;
 }
@@ -75,6 +76,7 @@ export function goalStart(
       lastActivityAt: now,
       lastOperation: 'goal-start',
       ...(opts.backlogTaskId ? { backlogTaskId: opts.backlogTaskId } : {}),
+      ...(opts.autoMergeAllowed ? { autoMergeAllowed: true } : {}),
       ...(opts.budget ? { budget: opts.budget } : {}),
     };
     writeGoal(goalPath(repo, id), goal);

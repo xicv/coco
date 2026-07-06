@@ -11,6 +11,7 @@ export interface StatusReport {
   nextAction: NextAction;
   headSha: string; // current HEAD — chain this into the next record's expectedSha
   backlogTaskId?: string; // if this goal came from a BACKLOG.md task
+  autoMergeAllowed?: boolean; // per-goal forward consent for Layer 2 auto-merge — driver reads this instead of relying on memory
   live: LiveGit;
   facts: DerivedFacts;
   warnings?: string[]; // non-blocking advisories (e.g. verify.testCommand changed in the goal diff)
@@ -29,6 +30,7 @@ export function goalStatus(repo: string, id?: string): StatusReport {
     nextAction: nextAction(goal, live),
     headSha: headSha(repo),
     ...(goal.backlogTaskId ? { backlogTaskId: goal.backlogTaskId } : {}),
+    ...(goal.autoMergeAllowed ? { autoMergeAllowed: true } : {}),
     live,
     facts: deriveFacts(goal.events, live.tHead),
     ...(warnings.length ? { warnings } : {}),

@@ -37,6 +37,7 @@ export interface GoalState {
   lastActivityAt?: string;
   lastOperation?: string;
   backlogTaskId?: string; // the BACKLOG.md task this goal implements (for coco_done after merge)
+  autoMergeAllowed?: boolean; // per-goal forward consent: may auto-merge (Layer 2) if green + rebased + risk-tier passes. Set at goal start; never a session/global default.
   budget?: GoalBudget;
   inFlight?: InFlight; // a long Oracle/test op currently running (undefined when idle)
   failureLoop?: FailureLoop; // consecutive-same-failure tracker (fingerprint stuck-detection)

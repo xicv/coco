@@ -30,6 +30,17 @@ test('status walks plan → implement → review → verify → merge-gate', () 
   expect(goalStatus(repo, id).nextAction).toBe('merge-gate');
 });
 
+test('status exposes autoMergeAllowed when the goal opted in, omits it otherwise', () => {
+  const on = tmpRepo();
+  initRepo(on);
+  const a = goalStart(on, { objective: 'auto', maxFixRounds: 3, acceptanceChecks: [], autoMergeAllowed: true }).goalId;
+  expect(goalStatus(on, a).autoMergeAllowed).toBe(true);
+
+  const off = tmpRepo();
+  const b = drive(off);
+  expect(goalStatus(off, b).autoMergeAllowed).toBeUndefined();
+});
+
 test('status is pure: repeated calls do not change fixRounds or state', () => {
   const repo = tmpRepo();
   const id = drive(repo);
