@@ -55,7 +55,15 @@ export function verifyTestCommandChange(repo: string, base: string, head = 'HEAD
 export const VERIFY_TEST_COMMAND_CHANGED_WARNING =
   'verify.testCommand differs between base and HEAD — verify ran the branch version, so review should confirm this verification-policy change';
 
-/** Non-blocking warnings about a goal branch's verification policy (surfaced, never gated). */
+export const VERIFY_NOT_CONFIGURED_WARNING =
+  'coco.config.json has no verify.testCommand set — coco runs this itself at the verify gate (there is no agent fallback), so configure it before you get there';
+
+/** Non-blocking warnings about a goal branch's verification policy (surfaced, never gated). Emitted
+ * at goal-start and every cycle, so a missing verify.testCommand is discoverable up front rather than
+ * only when the loop reaches the verify gate. */
 export function verifyConfigWarnings(repo: string, base: string, head = 'HEAD'): string[] {
-  return verifyTestCommandChange(repo, base, head) === 'none' ? [] : [VERIFY_TEST_COMMAND_CHANGED_WARNING];
+  const warnings: string[] = [];
+  if (verifyTestCommandChange(repo, base, head) !== 'none') warnings.push(VERIFY_TEST_COMMAND_CHANGED_WARNING);
+  if (readVerifyConfigAtRef(repo, head) === null) warnings.push(VERIFY_NOT_CONFIGURED_WARNING);
+  return warnings;
 }

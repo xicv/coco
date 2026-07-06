@@ -30,6 +30,32 @@ test('init is idempotent', () => {
   expect(head(dir)).toBe(h);
 });
 
+test('init scaffolds a committed, parseable coco.config.json with a fill-me-in testCommand', () => {
+  const dir = emptyDir();
+  initRepo(dir);
+  const p = join(dir, 'coco.config.json');
+  expect(existsSync(p)).toBe(true);
+  // committed (tracked), not just written to the working tree
+  expect(execFileSync('git', ['ls-files', 'coco.config.json'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('coco.config.json');
+  const cfg = JSON.parse(readFileSync(p, 'utf8')) as { verify: { testCommand: string; timeoutSec: number } };
+  expect(cfg.verify.testCommand).toBe(''); // placeholder — surfaced as a non-blocking warning until set
+  expect(typeof cfg.verify.timeoutSec).toBe('number');
+  // init leaves a clean tree (a dirty tree would make goalStart return commit-or-revert)
+  expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+});
+
+test('init never overwrites an existing coco.config.json', () => {
+  const dir = emptyDir();
+  execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
+  const custom = `${JSON.stringify({ verify: { testCommand: 'my-project-tests' } }, null, 2)}\n`;
+  writeFileSync(join(dir, 'coco.config.json'), custom);
+  execFileSync('git', ['add', 'coco.config.json'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'seed config'], { cwd: dir });
+  initRepo(dir);
+  expect(readFileSync(join(dir, 'coco.config.json'), 'utf8')).toBe(custom); // untouched
+  expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+});
+
 test('init refuses to sweep pre-existing staged changes into its commit', () => {
   const dir = emptyDir();
   execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
