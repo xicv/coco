@@ -168,7 +168,10 @@ export function storeFind(repo: string, query: string, limit = 10): { id: string
     .map((r) => ({ id: r.card.id, title: r.card.title, rank: r.rank, reason: r.reason }));
 }
 
-export function storePack(repo: string, opts: { goalId: string; query?: string; budgetBytes?: number }): ReturnType<typeof buildBrief> {
+export function storePack(
+  repo: string,
+  opts: { goalId: string; query?: string; budgetBytes?: number; backgroundFile?: string; backgroundText?: string },
+): ReturnType<typeof buildBrief> {
   return buildBrief(repo, opts);
 }
 

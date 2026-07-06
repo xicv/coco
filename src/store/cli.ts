@@ -1,5 +1,35 @@
 import { execFileSync } from 'node:child_process';
+import { readSync } from 'node:fs';
 import { parseArgs } from 'node:util';
+
+// Read at most `maxBytes` from stdin (fd 0). Bounded so a huge pipe can't blow memory before the brief
+// bounder runs; refuses an interactive TTY (readSync would block waiting for the user to type).
+function readStdinHead(maxBytes: number): string {
+  if (process.stdin.isTTY) throw new Error('coco-store pack --background-stdin expects text piped on stdin (none attached — did you forget the pipe?)');
+  const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  const buf = Buffer.alloc(maxBytes);
+  let off = 0;
+  let idleWaits = 0; // bound EAGAIN retries so a non-blocking fd 0 with no data can't spin forever
+  while (off < maxBytes) {
+    let r: number;
+    try {
+      r = readSync(0, buf, off, maxBytes - off, null);
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === 'EOF') break;
+      if (code === 'EAGAIN') {
+        if (++idleWaits > 2000) throw new Error('coco-store pack --background-stdin: stdin produced no data (EAGAIN) — pipe the distilled context in');
+        sleep(1);
+        continue;
+      }
+      throw e;
+    }
+    idleWaits = 0;
+    if (r <= 0) break;
+    off += r;
+  }
+  return buf.subarray(0, off).toString('utf8');
+}
 import { storeAdd, storeFind, storeGroup, storeInit, storeLink, storeList, storePack, storeProgress, storePromote, storeRoadmap, storeShow, storeViz, type GroupBy, type LinkRel } from './commands.js';
 import type { ResourceCard } from './schema.js';
 
@@ -69,9 +99,22 @@ export function main(argv: string[] = process.argv.slice(2)): number {
       return 0;
     }
     if (cmd === 'pack') {
-      const { values } = parseArgs({ args: rest, options: { goal: { type: 'string' }, query: { type: 'string' }, budget: { type: 'string' } } });
-      if (!values.goal) throw new Error('usage: coco-store pack --goal <id> [--query <q>] [--budget <bytes>]');
-      out(storePack(repo, { goalId: values.goal, query: values.query, budgetBytes: values.budget ? Number(values.budget) : undefined }));
+      const { values } = parseArgs({
+        args: rest,
+        options: { goal: { type: 'string' }, query: { type: 'string' }, budget: { type: 'string' }, background: { type: 'string' }, 'background-stdin': { type: 'boolean' } },
+      });
+      if (!values.goal) throw new Error('usage: coco-store pack --goal <id> [--query <q>] [--budget <bytes>] [--background <file> | --background-stdin]');
+      if (values.background && values['background-stdin']) throw new Error('coco-store pack: use either --background <file> or --background-stdin, not both');
+      // --background-stdin lets the loop feed its bounded distilled current-session context through the
+      // SAME bounder as a file (so the default background path is bounded, not unbounded pasted prose).
+      // Read is capped (≈background cap + margin) and refuses a TTY; empty stdin is a loud error, not a
+      // silent empty background.
+      let backgroundText: string | undefined;
+      if (values['background-stdin']) {
+        backgroundText = readStdinHead(8192);
+        if (!backgroundText.trim()) throw new Error('coco-store pack --background-stdin received empty stdin (pipe your distilled session context in)');
+      }
+      out(storePack(repo, { goalId: values.goal, query: values.query, budgetBytes: values.budget ? Number(values.budget) : undefined, backgroundFile: values.background, backgroundText }));
       return 0;
     }
     if (cmd === 'link') {
