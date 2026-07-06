@@ -126,6 +126,26 @@ test('init refuses BEFORE scaffolding — no coco.config.json/.gitignore leak on
   expect(() => initRepo(dir)).toThrow(/staged changes/);
   // no scaffolded config was leaked to the working tree
   expect(existsSync(join(dir, 'coco.config.json'))).toBe(false);
+  // and no .coco/ side effect from a refused init (mkdir runs only after the refusal passes)
+  expect(existsSync(join(dir, '.coco'))).toBe(false);
   // the tree holds ONLY the user's own staged change — nothing coco wrote
   expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('A  other.txt');
+});
+
+test('init does not resurrect/clobber a committed config when the working file was removed', () => {
+  // HEAD already carries the config; the working file is gone. init must NOT write a starter back
+  // (that would leave a write-without-commit dirty tree, or clobber the committed policy).
+  const dir = emptyDir();
+  execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
+  writeFileSync(join(dir, '.gitignore'), '.coco/\n');
+  writeFileSync(join(dir, 'coco.config.json'), `${JSON.stringify({ verify: { testCommand: 'npm test' } }, null, 2)}\n`);
+  execFileSync('git', ['add', '.gitignore', 'coco.config.json'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'seed'], { cwd: dir });
+  execFileSync('git', ['rm', 'coco.config.json'], { cwd: dir }); // stage a deletion of the committed config
+
+  initRepo(dir); // no-op: HEAD still has the config; init must not recreate it
+  expect(existsSync(join(dir, 'coco.config.json'))).toBe(false);
+  const porcelain = execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim();
+  expect(porcelain).not.toContain('??'); // init added no untracked file
+  expect(porcelain).toContain('coco.config.json'); // only the user's own staged deletion remains
 });

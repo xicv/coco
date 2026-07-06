@@ -22,8 +22,6 @@ export function initRepo(repo: string): void {
     git(repo, ['init', '-b', 'main']);
   }
 
-  mkdirSync(goalsDir(repo), { recursive: true });
-
   const gi = join(repo, '.gitignore');
   const current = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
   const needsIgnore = !current.split('\n').includes('.coco/');
@@ -37,7 +35,11 @@ export function initRepo(repo: string): void {
   const configExists = existsSync(cfgPath);
   const hasHead = tryGit(repo, ['rev-parse', 'HEAD']).ok;
   const headHasConfig = hasHead && tryGit(repo, ['cat-file', '-e', 'HEAD:coco.config.json']).ok;
-  const needsConfigWrite = !configExists;
+  // Scaffold a starter ONLY when there is no config to be had at all — neither on disk nor at HEAD.
+  // Gating on `!headHasConfig` too means a write always implies needsConfigCommit (so willCommit
+  // covers it, never a write-without-commit → dirty tree), and we never resurrect/clobber a config
+  // that HEAD already carries when the working file was merely removed.
+  const needsConfigWrite = !configExists && !headHasConfig;
   const needsConfigCommit = !headHasConfig;
 
   const willCommit = needsIgnore || needsConfigCommit || !hasHead;
@@ -55,7 +57,10 @@ export function initRepo(repo: string): void {
     }
   }
 
-  // Safe to write now — the refusal has already fired, so a throw can't leak a scaffolded file.
+  // Safe to touch the filesystem now — the refusal has already fired, so nothing below is a side
+  // effect of a refused init. (.coco/ is gitignored, so creating it never dirties the tree, but we
+  // still honour "refuse before any write".)
+  mkdirSync(goalsDir(repo), { recursive: true });
   if (needsIgnore) {
     const prefix = current && !current.endsWith('\n') ? `${current}\n` : current;
     writeFileSync(gi, `${prefix}.coco/\n`);
