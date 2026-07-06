@@ -67,6 +67,20 @@ test('init refuses to sweep pre-existing staged changes into its commit', () => 
   expect(stillStaged).toContain('secret.txt');
 });
 
+test('init force-adds its config past a repo ignore rule (e.g. *.json) so it is tracked, tree clean', () => {
+  const dir = emptyDir();
+  execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
+  writeFileSync(join(dir, '.gitignore'), '*.json\n.coco/\n'); // repo ignores all .json — including coco.config.json
+  execFileSync('git', ['add', '.gitignore'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'seed'], { cwd: dir });
+
+  initRepo(dir); // must not throw despite coco.config.json matching *.json
+  // config is committed (tracked) even though it is ignored by pattern
+  expect(execFileSync('git', ['ls-files', 'coco.config.json'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('coco.config.json');
+  // and nothing is left dirty (including nothing showing up as ignored-but-present)
+  expect(execFileSync('git', ['status', '--porcelain', '--ignored'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+});
+
 test('init refuses BEFORE scaffolding — no coco.config.json/.gitignore leak on the staged path', () => {
   // Existing repo with HEAD and .coco/ already ignored (needsIgnore=false), no coco.config.json,
   // plus an unrelated staged change. init must refuse WITHOUT leaving a scaffolded file untracked.

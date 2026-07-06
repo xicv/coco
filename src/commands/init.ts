@@ -65,7 +65,11 @@ export function initRepo(repo: string): void {
     const pathspec = [needsIgnore || !hasHead ? '.gitignore' : null, needsConfig ? 'coco.config.json' : null].filter(
       (p): p is string => p !== null,
     );
-    git(repo, ['add', ...pathspec]);
+    // Force-add (`-f`) coco's own files past any repo ignore rules. A repo that ignores e.g. `*.json`
+    // would otherwise make `git add coco.config.json` fail, throwing AFTER the write (a leak) — and
+    // coco REQUIRES its config tracked (verify reads it via `git show HEAD:coco.config.json`). These
+    // pathspecs are coco-owned, so overriding .gitignore for exactly them is correct.
+    git(repo, ['add', '-f', '--', ...pathspec]);
     git(repo, ['-c', 'user.email=coco@local', '-c', 'user.name=coco', 'commit', '-m', 'chore: coco init', '--', ...pathspec]);
   }
 }
