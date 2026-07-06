@@ -3,6 +3,7 @@ import { goalStart } from '../commands/goalStart.js';
 import { goalRecord } from '../commands/goalRecord.js';
 import { goalStatus, type StatusReport } from '../commands/goalStatus.js';
 import { goalClear } from '../commands/goalClear.js';
+import { autoMergeGoal, type AutoMergeResult } from '../commands/merge.js';
 import { goalOpStart, goalOpClear } from '../commands/goalOp.js';
 import { goalOracleUnavailable } from '../commands/goalOracle.js';
 import { verifyStart, verifyResult, type VerifyResultReport, type VerifyStartResult } from '../commands/verify.js';
@@ -26,6 +27,7 @@ export function cocoGoalStart(a: {
   acceptanceChecks?: string[];
   maxFixRounds?: number;
   backlogTaskId?: string;
+  autoMergeAllowed?: boolean;
   budget?: { maxWallClockMin?: number };
 }): { goalId: string; status: StatusReport } {
   const repo = resolveRepo(a.repoDir);
@@ -34,9 +36,17 @@ export function cocoGoalStart(a: {
     acceptanceChecks: a.acceptanceChecks ?? [],
     maxFixRounds: a.maxFixRounds ?? 5,
     backlogTaskId: a.backlogTaskId,
+    autoMergeAllowed: a.autoMergeAllowed,
     budget: a.budget,
   });
   return { goalId, status: goalStatus(repo, goalId) };
+}
+
+/** Layer 2 auto-merge (opt-in per goal). Gated server-side by consent + every mergeDecision gate +
+ * risk-tier; a refusal returns next:'human-merge'|'continue-loop' — it can never merge a
+ * non-consented, non-green, or risky goal. The human `coco merge` CLI is the manual path. */
+export function cocoMerge(a: { repoDir: string; goalId: string; expectedSha: string }): AutoMergeResult {
+  return autoMergeGoal(resolveRepo(a.repoDir), a.goalId, { expectedSha: a.expectedSha });
 }
 
 export function cocoGoalStatus(a: { repoDir: string; goalId?: string }): StatusReport {

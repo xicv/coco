@@ -13,6 +13,7 @@ import {
   cocoGoalVerifyStart,
   cocoHealth,
   cocoInit,
+  cocoMerge,
   cocoNextTool,
 } from './tools.js';
 
@@ -65,6 +66,7 @@ export function buildServer(): McpServer {
         acceptanceChecks: z.array(z.string()).optional(),
         maxFixRounds: z.number().int().positive().optional(),
         backlogTaskId: z.string().optional().describe('the BACKLOG.md task id this goal implements (from coco_next), so coco_done survives a session drop'),
+        autoMergeAllowed: z.boolean().optional().describe('Layer 2 forward consent: allow coco_merge to auto-merge THIS goal if it comes back clean + verified + rebased + within risk policy. Opt-in per goal only (from `$coco-loop --auto`); never a global default.'),
         budget: z.object({ maxWallClockMin: z.number().positive() }).optional().describe('optional wall-clock cap (minutes); over budget mid-loop → coco_health returns `budget-exceeded`'),
       },
     },
@@ -206,8 +208,20 @@ export function buildServer(): McpServer {
     wrap(cocoDoneTool),
   );
 
-  // NOTE: coco_merge is deliberately NOT registered. Merge is the human consent
-  // checkpoint: the user runs `coco merge --goal <id>` in the terminal. Keeping it
-  // off MCP means a confused/runaway loop cannot merge, even under --yolo.
+  server.registerTool(
+    'coco_merge',
+    {
+      title: 'Auto-merge an opted-in goal (Layer 2)',
+      description:
+        'Merge a goal WITHOUT a human click — allowed ONLY when the goal opted in at start (autoMergeAllowed) AND it passes every merge gate (review clean, verify pass, rebased) AND the risk-tier (no sensitive paths, within size limit, has tests). expectedSha must equal current HEAD. Returns {merged:true, mergedSha} on success, else {merged:false, reason, next}: next="human-merge" → fall back to proposing `coco merge --goal <id>` for a human; next="continue-loop" → a transient gate (rebase/re-review), re-run coco_goal_status. A non-consented, non-green, or risky goal can NEVER merge here — the human `coco merge` CLI is the manual path.',
+      inputSchema: { repoDir, goalId: z.string(), expectedSha: z.string().describe('must equal current HEAD (the latest coco_goal_status headSha)') },
+    },
+    wrap(cocoMerge),
+  );
+
+  // NOTE: coco_merge auto-merges ONLY a goal that opted in at start AND passes every
+  // mergeDecision gate AND the risk-tier (all enforced server-side in autoMergeGoal).
+  // A confused/runaway loop still cannot merge a non-consented, non-green, or risky
+  // goal. The human `coco merge --goal <id>` CLI remains the manual consent path.
   return server;
 }

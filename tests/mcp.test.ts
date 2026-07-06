@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { expect, test } from 'vitest';
-import { cocoDoneTool, cocoGoalOpClear, cocoGoalOpStart, cocoGoalOracleUnavailable, cocoGoalRecord, cocoGoalStart, cocoGoalStatus, cocoHealth, cocoInit, cocoNextTool } from '../src/mcp/tools.js';
+import { goalRecord } from '../src/commands/goalRecord.js';
+import { cocoDoneTool, cocoGoalOpClear, cocoGoalOpStart, cocoGoalOracleUnavailable, cocoGoalRecord, cocoGoalStart, cocoGoalStatus, cocoHealth, cocoInit, cocoMerge, cocoNextTool } from '../src/mcp/tools.js';
 import { headSha } from '../src/git.js';
-import { commit, tmpRepo } from './helpers.js';
+import { commit, g, tmpRepo } from './helpers.js';
 
 test('cocoInit + cocoGoalStart over a temp repo returns status with headSha', () => {
   const repo = tmpRepo();
@@ -152,4 +153,47 @@ test('backlogTaskId threads through goal start into status (durable coco_done)',
   const r = cocoGoalStart({ repoDir: repo, objective: 'x', backlogTaskId: 'task-9' });
   expect(r.status.backlogTaskId).toBe('task-9');
   expect(cocoGoalStatus({ repoDir: repo }).backlogTaskId).toBe('task-9');
+});
+
+/** Drive an auto-merge-eligible goal to merge-gate via the MCP start + a risk-safe diff. */
+function mergeReadyAuto(repo: string, autoMergeAllowed: boolean): string {
+  cocoInit({ repoDir: repo });
+  const id = cocoGoalStart({ repoDir: repo, objective: 'feat x', autoMergeAllowed }).goalId;
+  goalRecord(repo, { goal: id, phase: 'plan', expectedSha: headSha(repo) });
+  for (const [f, c] of Object.entries({ 'src/f.ts': 'export const x = 1;\n', 'tests/f.test.ts': 'test.skip("x", () => {});\n' })) {
+    const abs = join(repo, f);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, c);
+  }
+  g(repo, ['add', '-A']);
+  g(repo, ['commit', '-m', 'work']);
+  goalRecord(repo, { goal: id, phase: 'implement', expectedSha: headSha(repo) });
+  goalRecord(repo, { goal: id, phase: 'review', verdict: 'clean', expectedSha: headSha(repo) });
+  goalRecord(repo, { goal: id, phase: 'verify', verdict: 'pass', expectedSha: headSha(repo) });
+  return id;
+}
+
+test('autoMergeAllowed threads through cocoGoalStart into status; omitted by default', () => {
+  const on = tmpRepo();
+  cocoInit({ repoDir: on });
+  expect(cocoGoalStart({ repoDir: on, objective: 'x', autoMergeAllowed: true }).status.autoMergeAllowed).toBe(true);
+  const off = tmpRepo();
+  cocoInit({ repoDir: off });
+  expect(cocoGoalStart({ repoDir: off, objective: 'x' }).status.autoMergeAllowed).toBeUndefined();
+});
+
+test('cocoMerge auto-merges an opted-in, green, low-risk goal', () => {
+  const repo = tmpRepo();
+  const id = mergeReadyAuto(repo, true);
+  const res = cocoMerge({ repoDir: repo, goalId: id, expectedSha: headSha(repo) });
+  expect(res.merged).toBe(true);
+  expect(res.mergedSha).toMatch(/^[0-9a-f]{7,}/);
+});
+
+test('cocoMerge refuses a non-opted-in goal with next=human-merge', () => {
+  const repo = tmpRepo();
+  const id = mergeReadyAuto(repo, false);
+  const res = cocoMerge({ repoDir: repo, goalId: id, expectedSha: headSha(repo) });
+  expect(res.merged).toBe(false);
+  expect(res.next).toBe('human-merge');
 });

@@ -11,7 +11,7 @@ const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxBin = join(projectRoot, 'node_modules', '.bin', 'tsx');
 const entry = join(projectRoot, 'src', 'bin', 'coco-mcp.ts');
 
-test('MCP stdio server exposes coco tools but NOT coco_merge; init+start work', async () => {
+test('MCP stdio server exposes coco tools including coco_merge (Layer 2); init+start work', async () => {
   const repo = mkdtempSync(join(tmpdir(), 'coco-mcp-'));
   g(repo, ['init', '-b', 'main']);
   g(repo, ['commit', '--allow-empty', '-m', 'seed']);
@@ -26,7 +26,7 @@ test('MCP stdio server exposes coco tools but NOT coco_merge; init+start work', 
     expect(tools).toContain('coco_health');
     expect(tools).toContain('coco_next');
     expect(tools).toContain('coco_done');
-    expect(tools).not.toContain('coco_merge'); // merge is human-terminal-only
+    expect(tools).toContain('coco_merge'); // Layer 2: auto-merge, gated server-side by consent + risk-tier
 
     const init = await client.callTool({ name: 'coco_init', arguments: { repoDir: repo } });
     expect(init.isError).toBeFalsy();
