@@ -81,6 +81,37 @@ test('init force-adds its config past a repo ignore rule (e.g. *.json) so it is 
   expect(execFileSync('git', ['status', '--porcelain', '--ignored'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
 });
 
+test('init commits an existing untracked (ignored) coco.config.json — recovers, never no-ops on it', () => {
+  // The invariant is a COMMITTED config (verify reads git show HEAD:coco.config.json). A config that
+  // merely exists on disk but is ignored+untracked (e.g. a *.json rule, or an interrupted prior init)
+  // must be force-committed, not skipped because the file happens to exist.
+  const dir = emptyDir();
+  execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
+  writeFileSync(join(dir, '.gitignore'), '.coco/\n*.json\n');
+  execFileSync('git', ['add', '.gitignore'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'seed'], { cwd: dir });
+  const userCfg = `${JSON.stringify({ verify: { testCommand: 'npm test' } }, null, 2)}\n`;
+  writeFileSync(join(dir, 'coco.config.json'), userCfg); // ignored + untracked; HEAD has no config
+
+  initRepo(dir);
+  // now committed (tracked) and readable at HEAD
+  expect(execFileSync('git', ['ls-files', 'coco.config.json'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('coco.config.json');
+  // the user's content was preserved, not overwritten by the starter
+  expect(readFileSync(join(dir, 'coco.config.json'), 'utf8')).toBe(userCfg);
+  expect(execFileSync('git', ['status', '--porcelain', '--ignored'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+});
+
+test('init includes a pre-existing coco.config.json in the bootstrap commit of an unborn repo', () => {
+  const dir = emptyDir();
+  const userCfg = `${JSON.stringify({ verify: { testCommand: 'make test' } }, null, 2)}\n`;
+  writeFileSync(join(dir, 'coco.config.json'), userCfg); // present before any commit exists
+  initRepo(dir); // initRepo runs git init, then must seed HEAD WITH the config
+
+  expect(execFileSync('git', ['ls-files', 'coco.config.json'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('coco.config.json');
+  expect(readFileSync(join(dir, 'coco.config.json'), 'utf8')).toBe(userCfg);
+  expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+});
+
 test('init refuses BEFORE scaffolding — no coco.config.json/.gitignore leak on the staged path', () => {
   // Existing repo with HEAD and .coco/ already ignored (needsIgnore=false), no coco.config.json,
   // plus an unrelated staged change. init must refuse WITHOUT leaving a scaffolded file untracked.

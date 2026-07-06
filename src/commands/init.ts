@@ -28,12 +28,19 @@ export function initRepo(repo: string): void {
   const current = existsSync(gi) ? readFileSync(gi, 'utf8') : '';
   const needsIgnore = !current.split('\n').includes('.coco/');
 
-  // Never overwrite an existing coco.config.json (idempotent, and the repo's own policy wins).
+  // The invariant coco needs is a COMMITTED coco.config.json (verify reads it via
+  // `git show HEAD:coco.config.json`), which is distinct from a file merely existing on disk. Track
+  // the two separately: write a starter only when no file exists (never overwrite), but commit
+  // whenever HEAD lacks the config — this recovers an existing-but-untracked config (e.g. one the
+  // repo ignores via `*.json`, or an artifact a prior interrupted init left behind).
   const cfgPath = join(repo, 'coco.config.json');
-  const needsConfig = !existsSync(cfgPath);
-
+  const configExists = existsSync(cfgPath);
   const hasHead = tryGit(repo, ['rev-parse', 'HEAD']).ok;
-  const willCommit = needsIgnore || needsConfig || !hasHead;
+  const headHasConfig = hasHead && tryGit(repo, ['cat-file', '-e', 'HEAD:coco.config.json']).ok;
+  const needsConfigWrite = !configExists;
+  const needsConfigCommit = !headHasConfig;
+
+  const willCommit = needsIgnore || needsConfigCommit || !hasHead;
 
   // Refuse pre-existing staged changes BEFORE writing anything. Writing first would leave the
   // scaffolded .gitignore / coco.config.json untracked when we throw (a dirty tree that goalStart
@@ -54,7 +61,7 @@ export function initRepo(repo: string): void {
     writeFileSync(gi, `${prefix}.coco/\n`);
   }
   // Scaffold a starter coco.config.json so the coco-owned verify gate is configurable from day one.
-  if (needsConfig) {
+  if (needsConfigWrite) {
     writeFileSync(cfgPath, `${JSON.stringify(STARTER_COCO_CONFIG, null, 2)}\n`);
   }
 
@@ -62,7 +69,7 @@ export function initRepo(repo: string): void {
   // `commit-or-revert`). Pathspec commit: commit ONLY coco's own files, so nothing else can ride
   // along even if concurrently staged. .gitignore is always seeded on an unborn repo (to create HEAD).
   if (willCommit) {
-    const pathspec = [needsIgnore || !hasHead ? '.gitignore' : null, needsConfig ? 'coco.config.json' : null].filter(
+    const pathspec = [needsIgnore || !hasHead ? '.gitignore' : null, needsConfigCommit ? 'coco.config.json' : null].filter(
       (p): p is string => p !== null,
     );
     // Force-add (`-f`) coco's own files past any repo ignore rules. A repo that ignores e.g. `*.json`
