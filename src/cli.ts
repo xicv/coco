@@ -188,6 +188,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
             acceptance: { type: 'string' },
             'max-fix-rounds': { type: 'string' },
             'max-wall-min': { type: 'string' },
+            'auto-merge': { type: 'boolean' },
           },
         });
         if (!values.objective) throw new Error('coco goal start requires --objective');
@@ -196,6 +197,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
             objective: values.objective,
             acceptanceChecks: values.acceptance ? values.acceptance.split(';').map((s) => s.trim()).filter(Boolean) : [],
             maxFixRounds: values['max-fix-rounds'] ? Number(values['max-fix-rounds']) : 5,
+            autoMergeAllowed: values['auto-merge'] === true ? true : undefined,
             budget: values['max-wall-min'] ? { maxWallClockMin: Number(values['max-wall-min']) } : undefined,
           }),
         );

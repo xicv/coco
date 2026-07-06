@@ -1,12 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { DEFAULT_AUTO_MERGE_CONFIG } from '../cocoConfig.js';
 import { git, tryGit } from '../git.js';
 import { cocoDir, goalsDir } from '../paths.js';
 
 /** Starter `coco.config.json` scaffolded on init. The `testCommand` is an intentional fill-me-in
  * placeholder (empty → parses to no verify config → goal status surfaces a non-blocking warning
  * until set), so the verify gate is discoverable at init time rather than after plan/implement/review.
- * The `//` key is an inline doc note (JSON has no comments); the config parser ignores unknown keys. */
+ * The `//` keys are inline doc notes (JSON has no comments); the config parser ignores unknown keys.
+ * The `autoMerge` block is the Layer 2 policy (only consulted when a goal opts in via
+ * `coco goal start --auto-merge`); it's scaffolded at the code defaults so it's discoverable/tunable. */
 const STARTER_COCO_CONFIG = {
   '//': "coco runs verify.testCommand itself at the verify gate (no agent-reported fallback). Set it to your project's test command, e.g. \"pnpm test\" or \"npm test\".",
   verify: {
@@ -14,6 +17,8 @@ const STARTER_COCO_CONFIG = {
     timeoutSec: 600,
     outputLimitBytes: 65536,
   },
+  '// autoMerge': 'Only used when a goal opts in (coco goal start --auto-merge). Policy is read at the goal BASE ref; auto-merge is blocked on sensitive-glob paths, diffs over maxChangedLines, or diffs with no test files. coco.config.json is ALWAYS sensitive (self-tamper guard) regardless of this list.',
+  autoMerge: DEFAULT_AUTO_MERGE_CONFIG,
 };
 
 /** Idempotently bootstrap a target repo for coco. Leaves a CLEAN tree. */

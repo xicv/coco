@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { DEFAULT_AUTO_MERGE_CONFIG, readAutoMergePolicyAtRef } from '../src/cocoConfig.js';
 import { initRepo } from '../src/commands/init.js';
 
 function emptyDir(): string {
@@ -42,6 +43,13 @@ test('init scaffolds a committed, parseable coco.config.json with a fill-me-in t
   expect(typeof cfg.verify.timeoutSec).toBe('number');
   // init leaves a clean tree (a dirty tree would make goalStart return commit-or-revert)
   expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('');
+});
+
+test('init scaffolds a parseable autoMerge policy equal to the code defaults', () => {
+  const dir = emptyDir();
+  initRepo(dir);
+  // The starter block round-trips through the policy reader (read at HEAD here) to the defaults.
+  expect(readAutoMergePolicyAtRef(dir, 'HEAD')).toEqual(DEFAULT_AUTO_MERGE_CONFIG);
 });
 
 test('init never overwrites an existing coco.config.json', () => {
