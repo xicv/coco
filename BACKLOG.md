@@ -52,7 +52,7 @@ links:
 ### xagent-e2e — HUMAN: cross-agent E2E from Codex.app
 ```yaml
 id: xagent-e2e
-status: blocked
+status: done
 priority: low
 dependsOn: [store-viz, loop-pack]
 links:
