@@ -66,3 +66,21 @@ test('init refuses to sweep pre-existing staged changes into its commit', () => 
   const stillStaged = execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: dir, encoding: 'utf8' }).trim();
   expect(stillStaged).toContain('secret.txt');
 });
+
+test('init refuses BEFORE scaffolding — no coco.config.json/.gitignore leak on the staged path', () => {
+  // Existing repo with HEAD and .coco/ already ignored (needsIgnore=false), no coco.config.json,
+  // plus an unrelated staged change. init must refuse WITHOUT leaving a scaffolded file untracked.
+  const dir = emptyDir();
+  execFileSync('git', ['init', '-b', 'main'], { cwd: dir });
+  writeFileSync(join(dir, '.gitignore'), '.coco/\n');
+  execFileSync('git', ['add', '.gitignore'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-m', 'seed'], { cwd: dir });
+  writeFileSync(join(dir, 'other.txt'), 'x\n');
+  execFileSync('git', ['add', 'other.txt'], { cwd: dir });
+
+  expect(() => initRepo(dir)).toThrow(/staged changes/);
+  // no scaffolded config was leaked to the working tree
+  expect(existsSync(join(dir, 'coco.config.json'))).toBe(false);
+  // the tree holds ONLY the user's own staged change — nothing coco wrote
+  expect(execFileSync('git', ['status', '--porcelain'], { cwd: dir, encoding: 'utf8' }).trim()).toBe('A  other.txt');
+});
