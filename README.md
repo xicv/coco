@@ -4,9 +4,9 @@
 
 # coco
 
-**A loop-engineering referee for AI coding agents** (Codex / Claude Code).
+**A minimal loop-engineering referee for AI coding agents** (Codex / Claude Code).
 
-coco drives one development goal through **plan → implement → review → fix → verify → human-merge**, gated at every step by a git-**tree-hash**-bound, **epoch-scoped** state machine (an append-only event log; all gates derived; `coco merge` is the only merge path and is human-terminal by design). **ChatGPT-Pro ("Oracle")** is the review brain; the coding agent is the hands; **you** own the merge.
+coco is one small loop: **plan → implement → review → fix → verify → human-merge**, gated at every step by a git-**tree-hash**-bound, **epoch-scoped** state machine (an append-only event log; all gates derived; `coco merge` is the only merge path and is human-terminal by design). **ChatGPT-Pro ("Oracle")** is the review brain; the coding agent is the hands; **you** own the merge. The referee is deliberately tiny — it never writes your code, it just refuses the unsafe next step.
 
 Three layers, each with a `$`/`/` skill trigger:
 
@@ -15,6 +15,17 @@ Three layers, each with a `$`/`/` skill trigger:
 | **CEO** | `$coco-goal` | turn a weak intent into a strong, achievable, archivable **GoalSpec** (Outcome · Verification surface · Constraints · Boundaries · Iteration · Blocked-stop) + loop-sized steps |
 | **PM** | `$coco-store` / `coco-store` | organise / track / visualise the knowledge base — ResourceCards, roadmap, backlog progress, links, context `pack`, mermaid project graph |
 | **CTO** | `$coco-loop` | drive the gated build loop with Oracle review + coco-owned verify |
+
+## coco is built with coco
+
+coco builds itself. Every feature below was driven through `$coco-loop` on coco's own repo — Oracle plans it, the agent implements, Oracle reviews the real diff, coco runs coco's own tests to verify, and a human merges. That dogfooding is the toughest test of the loop, and it works: Oracle's review gate has caught a genuine correctness bug in **every** phase — from a monotonic-verdict bypass to a `coco init` that scaffolded its config file *before* checking for staged changes (a working-tree leak), each found by reviewing the committed diff, not by trusting the author. The loop converges, the human still owns the merge, and coco never self-merges.
+
+## What's new
+
+- **`coco init` scaffolds a starter `coco.config.json`** and goal status **warns early** when `verify.testCommand` is unset — so a fresh repo learns about the coco-owned verify gate up front, instead of stalling at it after plan/implement/review work is already sunk. init force-tracks its own config even past repo ignore rules, and never overwrites a config you already have.
+- **`coco-store` PM surface** — `list --group-by`, `progress` (backlog by status, grouped by spec), `link` (with a content-addressed links-merge), and `viz` (a structural mermaid project graph).
+- **`$coco-goal` (CEO layer)** — turns a weak intent into an archivable GoalSpec and promotes loop-sized steps to the backlog, then stops for you.
+- **Context `pack`** wires the store → loop: the loop reads a bounded coco-store brief before it plans.
 
 ## Prerequisites
 
@@ -36,7 +47,7 @@ Provides `coco` (the referee), `coco-store` (the PM layer), and the `coco-mcp` s
 
 ```sh
 cd your-repo
-coco init                              # bootstrap .coco/ on a clean main
+coco init                              # bootstrap .coco/ + a starter coco.config.json on a clean main
 # ... the loop is normally driven by the $coco-loop skill, not by hand ...
 coco-store progress                    # backlog by status, grouped by spec
 coco-store viz                         # mermaid project graph
