@@ -1,0 +1,55 @@
+{
+  "name": "@nickcao/coco",
+  "version": "0.0.2",
+  "description": "A loop-engineering referee for AI coding agents (Codex / Claude Code): plan → implement → review → verify → human-merge, gated by a git-tree-hash-bound, epoch-scoped state machine, with ChatGPT-Pro (Oracle) as the review brain.",
+  "type": "module",
+  "license": "MIT",
+  "author": "nickcao",
+  "homepage": "https://github.com/xicv/coco#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xicv/coco.git"
+  },
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "codex",
+    "claude-code",
+    "mcp",
+    "loop-engineering",
+    "referee",
+    "cli"
+  ],
+  "bin": {
+    "coco": "dist/coco.js",
+    "coco-store": "dist/coco-store.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "dev": "tsx src/bin/coco.ts",
+    "prepublishOnly": "pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsdown": "^0.15.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "verify": {
+    "testCommand": "pnpm test",
+    "timeoutSec": 600,
+    "outputLimitBytes": 65536
+  }
+}

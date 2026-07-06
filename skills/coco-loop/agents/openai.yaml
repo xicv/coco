@@ -1,0 +1,4 @@
+policy:
+  # Require explicit `$coco-loop` invocation in Codex — don't auto-start a
+  # multi-step loop from a description match.
+  allow_implicit_invocation: false

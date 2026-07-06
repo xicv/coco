@@ -1,0 +1,4 @@
+# pnpm 11 gates build scripts by default; allow esbuild (vitest/tsdown need its
+# platform binary). Keeps `pnpm test` / `pnpm build` working out of the box.
+allowBuilds:
+  esbuild: true

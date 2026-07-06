@@ -1,0 +1,21 @@
+# coco runtime state (per-repo goal state lives here in target repos)
+.coco/
+
+# coco-store local knowledge base — roadmap.md IS tracked; local resources/briefs never leave the machine
+.coco-store/resources.ndjson
+.coco-store/briefs/
+.coco-store/pending/
+.coco-store/_assets/
+
+# node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# os / editor
+.DS_Store
