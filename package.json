@@ -1,6 +1,6 @@
 {
   "name": "@nickcao/coco",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A loop-engineering referee for AI coding agents (Codex / Claude Code): plan → implement → review → verify → human-merge, gated by a git-tree-hash-bound, epoch-scoped state machine, with ChatGPT-Pro (Oracle) as the review brain.",
   "type": "module",
   "license": "MIT",
