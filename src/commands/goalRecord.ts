@@ -5,6 +5,12 @@ import { withLock } from '../lock.js';
 import { findActiveGoal, touchAndWrite } from '../state.js';
 import type { GoalEvent, Phase, Verdict } from '../types.js';
 
+/** Max stored evidence length in characters (UTF-16 code units, via String.slice) — the SINGLE
+ * source of the cap for every path (MCP + CLI). Capping in the domain function (not just at the MCP
+ * boundary) stops a huge paste from bloating .coco/goals/*.json, which coco fingerprints and re-reads
+ * every cycle. */
+export const EVIDENCE_MAX = 4000;
+
 export interface RecordOptions {
   goal: string;
   phase: Phase;
@@ -77,7 +83,7 @@ export function goalRecord(repo: string, opts: RecordOptions): GoalEvent {
       commit: head,
       tree,
       ...(opts.verdict ? { verdict: opts.verdict } : {}),
-      ...(opts.evidence ? { evidence: opts.evidence } : {}),
+      ...(opts.evidence ? { evidence: opts.evidence.slice(0, EVIDENCE_MAX) } : {}),
       ...(opts.runId ? { runId: opts.runId } : {}),
     };
     goal.events.push(event);

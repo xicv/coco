@@ -1,6 +1,6 @@
 import { initRepo } from '../commands/init.js';
 import { goalStart } from '../commands/goalStart.js';
-import { goalRecord } from '../commands/goalRecord.js';
+import { goalRecord, EVIDENCE_MAX } from '../commands/goalRecord.js';
 import { goalStatus, type StatusReport } from '../commands/goalStatus.js';
 import { goalClear } from '../commands/goalClear.js';
 import { autoMergeGoal, type AutoMergeResult } from '../commands/merge.js';
@@ -14,8 +14,6 @@ import { loopView } from '../progress/loop.js';
 import { progressField, renderView, type ProgressField } from '../progress/view.js';
 import { resolveRepo, resolveRepoForInit } from './repo.js';
 import type { GoalEvent, InFlight, Phase, ReviewUnavailable, Verdict } from '../types.js';
-
-const EVIDENCE_MAX = 4000;
 
 export function cocoInit(a: { repoDir: string }): { ok: true; repoDir: string } {
   const repo = resolveRepoForInit(a.repoDir);

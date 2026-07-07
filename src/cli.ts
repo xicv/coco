@@ -35,6 +35,8 @@ import { goalHealth } from './commands/health.js';
 import { guardHook, runGuard } from './commands/guard.js';
 import { defaultPaths, installHooks, uninstallHooks } from './commands/installHooks.js';
 import { cocoDone, cocoNext } from './commands/backlog.js';
+import { auditReport } from './commands/audit.js';
+import { readAudit } from './audit.js';
 import { notify } from './commands/notify.js';
 import { runWatch } from './commands/watch.js';
 import { installWatchdog, listWatchdogs, uninstallWatchdog } from './commands/watchdog.js';
@@ -306,6 +308,21 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         );
         return 0;
       }
+    }
+
+    if (cmd === 'audit') {
+      // coco-audit capture is automatic (domain-layer chokepoint); these are the human read surfaces.
+      if (sub === 'list') {
+        const { values } = parseArgs({ args: rest, options: { goal: { type: 'string' } } });
+        const recs = readAudit(repo);
+        out(values.goal ? recs.filter((r) => r.goalId === values.goal) : recs);
+        return 0;
+      }
+      if (sub === undefined || sub === 'report') {
+        out(auditReport(repo));
+        return 0;
+      }
+      // fall through to the unknown-command error rather than silently reporting on a typo'd subcommand
     }
 
     process.stderr.write(`coco: unknown command '${[cmd, sub].filter(Boolean).join(' ')}'\n`);

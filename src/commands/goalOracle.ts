@@ -1,4 +1,5 @@
 import { currentBranch, headSha, treeHash } from '../git.js';
+import { EVIDENCE_MAX } from './goalRecord.js';
 import { appendIncident } from '../incidents.js';
 import { withLock } from '../lock.js';
 import { findActiveGoal, touchAndWrite } from '../state.js';
@@ -27,7 +28,7 @@ export function goalOracleUnavailable(
       tree: treeHash(repo),
       reason: opts.reason,
       attempts: opts.attempts != null && opts.attempts > 0 ? Math.floor(opts.attempts) : 1,
-      ...(opts.evidence ? { evidence: opts.evidence } : {}),
+      ...(opts.evidence ? { evidence: opts.evidence.slice(0, EVIDENCE_MAX) } : {}),
     };
     goal.reviewUnavailable = marker;
     delete goal.inFlight; // the failed op is over

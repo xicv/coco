@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { auditGoalWrite } from '../audit.js';
 import { checkout, createBranch, gatherLive, isClean, treeOfRef } from '../git.js';
 import { nextAction, type NextAction } from '../gate.js';
 import { withLock } from '../lock.js';
@@ -80,6 +81,7 @@ export function goalStart(
       ...(opts.budget ? { budget: opts.budget } : {}),
     };
     writeGoal(goalPath(repo, id), goal);
+    auditGoalWrite(repo, goal, 'goal-start'); // goalStart writes directly (new goal), so audit here too
 
     return { goalId: id, nextAction: nextAction(goal, gatherLive(repo, goal)) };
   });
