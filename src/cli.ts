@@ -38,6 +38,8 @@ import { cocoDone, cocoNext } from './commands/backlog.js';
 import { auditReport } from './commands/audit.js';
 import { readAudit } from './audit.js';
 import { cleanDoctor, runDoctor } from './commands/doctor.js';
+import { improveDigest } from './improve/digest.js';
+import { improveCheck, improveCheckDiff } from './improve/protected.js';
 import { notify } from './commands/notify.js';
 import { runWatch } from './commands/watch.js';
 import { installWatchdog, listWatchdogs, uninstallWatchdog } from './commands/watchdog.js';
@@ -320,6 +322,23 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         const { values } = parseArgs({ args: rest, options: { apply: { type: 'boolean' } } });
         out(cleanDoctor(repo, { apply: values.apply === true }));
         return 0;
+      }
+      // fall through to the unknown-command error for a typo'd subcommand
+    }
+
+    if (cmd === 'improve') {
+      // coco-improve slice 1: deterministic, code-owned. `digest` reads the audit corpus; `check`
+      // is the protected-path guard (referee/metrics/self off-limits). Propose-only skill comes later.
+      if (sub === 'digest') {
+        out(improveDigest(repo));
+        return 0;
+      }
+      if (sub === 'check') {
+        const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { diff: { type: 'boolean' }, base: { type: 'string' } } });
+        if (!values.diff && !positionals.length) throw new Error('usage: coco improve check <path...>  |  coco improve check --diff [--base <ref>]');
+        const res = values.diff ? improveCheckDiff(repo, values.base) : improveCheck(repo, positionals);
+        out(res);
+        return res.ok ? 0 : 3; // non-zero when a protected path is targeted — gates CI/scripts
       }
       // fall through to the unknown-command error for a typo'd subcommand
     }
