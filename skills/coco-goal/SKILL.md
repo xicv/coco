@@ -53,6 +53,26 @@ Invoke: `$coco-goal <intent>` (Codex) / `/coco-goal <intent>` (Claude Code).
 
     Do NOT invoke coco-loop yourself.
 
+## Progress card (self-reported phase)
+
+coco-goal keeps **no runtime state** (rule 1/6 — it never writes `.coco/goals`), so there's no engine to compute progress from. Instead, echo this **canonical card** when you *enter* a new phase, so the human sees native-looking progress in the Codex macOS app in the **same `◈ coco` visual language** as coco-loop / coco-store. The 8 phases are: **Capture · Read · Research · Decompose · Feasibility · Grill · Archive · Promote**.
+
+Echo it **verbatim** (fill in the values), as its own message, on each phase entry — mark done phases, the current one with `▸`, and any skipped phase (e.g. no grill needed) as `skipped`:
+
+````
+```text
+◈ coco-goal  ·  <short intent>
+  Phase        Decompose (4/8)
+  Done         Capture · Read · Research
+  Now          Decompose ▸
+  Next         Feasibility · Grill · Archive · Promote
+
+  source: coco-goal (self-reported) · non-authoritative
+```
+````
+
+**This card is display only** — the self-reported phase position must **never** affect archiving, promoting, or any loop gating (those stay driven by the real artifacts). Don't re-echo the same phase; only on a change. At `Promote`, follow it with the coco-computed hand-off (spec id + promoted task count from the `coco-store` output), which is the authoritative record.
+
 ## Notes
 
 - **Composes, doesn't duplicate.** Use the existing **Explore** capability for codebase reading, web search for research, and **grill-me** / **brainstorming** for the (bounded) interactive refinement — don't reimplement them here.

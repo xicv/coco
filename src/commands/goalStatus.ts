@@ -10,6 +10,7 @@ export interface StatusReport {
   state: string;
   nextAction: NextAction;
   headSha: string; // current HEAD — chain this into the next record's expectedSha
+  maxFixRounds: number; // the goal's fix budget — lets the progress card show "round N/max"
   backlogTaskId?: string; // if this goal came from a BACKLOG.md task
   autoMergeAllowed?: boolean; // per-goal forward consent for Layer 2 auto-merge — driver reads this instead of relying on memory
   live: LiveGit;
@@ -29,6 +30,7 @@ export function goalStatus(repo: string, id?: string): StatusReport {
     state: goal.state,
     nextAction: nextAction(goal, live),
     headSha: headSha(repo),
+    maxFixRounds: goal.maxFixRounds,
     ...(goal.backlogTaskId ? { backlogTaskId: goal.backlogTaskId } : {}),
     ...(goal.autoMergeAllowed ? { autoMergeAllowed: true } : {}),
     live,

@@ -25,6 +25,7 @@ Invoke: `$coco-store <intent>` (Codex) / `/coco-store <intent>` (Claude Code).
 | show one card in full | `coco-store show <id>` |
 | add a doc / decision / note | `coco-store add --type <type> --title "<title>" [--tags a,b] [--category c] <file>` (or `--body "…"`) |
 | see project / backlog progress | `coco-store progress` (grouped by originating spec) |
+| show a native project-pulse card | `coco-store status` → echo its `markdown` verbatim (backlog + specs + roadmap) |
 | **visualise** the project | `coco-store viz` → then show the mermaid at `.coco-store/pending/project-graph.md` |
 | link two resources | `coco-store link --from <id> --to <id> --rel defines\|references\|relates-to\|depends-on` |
 | build a context brief for a goal | `coco-store pack --goal <id> [--query <q>]` |
@@ -37,3 +38,4 @@ Invoke: `$coco-store <intent>` (Codex) / `/coco-store <intent>` (Claude Code).
 - A **GoalSpec** (`add --type spec`) must contain `Outcome` / `Verification surface` / `Boundaries` sections — the store rejects a weak spec. Specs are normally authored by **`$coco-goal`**, not hand-added here.
 - `progress` groups BACKLOG by `links.spec`; `viz` renders roadmap → spec cards → their backlog tasks → card links (structural, written to the git-ignored pending dir).
 - After any mutation, echo the returned `id` / result so the user has a handle to reference.
+- **Progress card.** `coco-store status` returns `{ format:"coco-progress-v1", markdown, specs }` — a fenced `◈ coco-store` project-pulse card in the shared coco visual language. Echo `markdown` **verbatim** on an explicit `$coco-store` / status / progress request and after a mutation (`add` / `promote` / `link` / `roadmap --append`); don't emit it after every read-only lookup. It renders natively in the Codex macOS app (the only progress surface there).

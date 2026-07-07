@@ -31,6 +31,8 @@ function readStdinHead(maxBytes: number): string {
   return buf.subarray(0, off).toString('utf8');
 }
 import { storeAdd, storeFind, storeGroup, storeInit, storeLink, storeList, storePack, storeProgress, storePromote, storeRoadmap, storeShow, storeViz, type GroupBy, type LinkRel } from './commands.js';
+import { storeView } from '../progress/store.js';
+import { progressField, renderView } from '../progress/view.js';
 import type { ResourceCard } from './schema.js';
 
 function repoRoot(cwd = process.cwd()): string {
@@ -125,6 +127,14 @@ export function main(argv: string[] = process.argv.slice(2)): number {
     }
     if (cmd === 'progress') {
       out(storeProgress(repo));
+      return 0;
+    }
+    if (cmd === 'status') {
+      // A native-looking project-pulse card (backlog + specs + roadmap) the skill echoes verbatim,
+      // plus the raw specs so it can still report specifics. Read-only.
+      const specs = storeProgress(repo);
+      const { roadmap } = storeRoadmap(repo);
+      out({ ...progressField(renderView(storeView(specs, roadmap))), specs });
       return 0;
     }
     if (cmd === 'viz') {

@@ -10,6 +10,8 @@ import { verifyStart, verifyResult, type VerifyResultReport, type VerifyStartRes
 import { goalHealth } from '../commands/health.js';
 import { cocoDone, cocoNext } from '../commands/backlog.js';
 import { parseOracleVerdict } from '../oracleVerdict.js';
+import { loopView } from '../progress/loop.js';
+import { progressField, renderView, type ProgressField } from '../progress/view.js';
 import { resolveRepo, resolveRepoForInit } from './repo.js';
 import type { GoalEvent, InFlight, Phase, ReviewUnavailable, Verdict } from '../types.js';
 
@@ -49,8 +51,12 @@ export function cocoMerge(a: { repoDir: string; goalId: string; expectedSha: str
   return autoMergeGoal(resolveRepo(a.repoDir), a.goalId, { expectedSha: a.expectedSha });
 }
 
-export function cocoGoalStatus(a: { repoDir: string; goalId?: string }): StatusReport {
-  return goalStatus(resolveRepo(a.repoDir), a.goalId);
+/** Read status + attach a versioned, ready-to-echo progress card (loop checkpoint). The card is
+ * additive: consumers that only read nextAction are unaffected. The driver echoes progress.markdown
+ * on state transitions so the human sees native-looking progress in the Codex app. */
+export function cocoGoalStatus(a: { repoDir: string; goalId?: string }): StatusReport & { progress: ProgressField } {
+  const status = goalStatus(resolveRepo(a.repoDir), a.goalId);
+  return { ...status, progress: progressField(renderView(loopView(status))) };
 }
 
 export interface RecordArgs {
