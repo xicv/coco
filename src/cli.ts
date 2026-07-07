@@ -37,6 +37,7 @@ import { defaultPaths, installHooks, uninstallHooks } from './commands/installHo
 import { cocoDone, cocoNext } from './commands/backlog.js';
 import { auditReport } from './commands/audit.js';
 import { readAudit } from './audit.js';
+import { cleanDoctor, runDoctor } from './commands/doctor.js';
 import { notify } from './commands/notify.js';
 import { runWatch } from './commands/watch.js';
 import { installWatchdog, listWatchdogs, uninstallWatchdog } from './commands/watchdog.js';
@@ -308,6 +309,19 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         );
         return 0;
       }
+    }
+
+    if (cmd === 'doctor') {
+      if (sub === undefined || sub === 'report') {
+        out(runDoctor(repo));
+        return 0;
+      }
+      if (sub === 'clean') {
+        const { values } = parseArgs({ args: rest, options: { apply: { type: 'boolean' } } });
+        out(cleanDoctor(repo, { apply: values.apply === true }));
+        return 0;
+      }
+      // fall through to the unknown-command error for a typo'd subcommand
     }
 
     if (cmd === 'audit') {

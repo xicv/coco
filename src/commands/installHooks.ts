@@ -74,6 +74,17 @@ export function removeHookFrom(configPath: string): void {
   writeJson(configPath, obj);
 }
 
+/** Is the coco merge-guard installed in this config? Tolerant: missing/unparseable → false. */
+export function isGuardInstalled(configPath: string): boolean {
+  try {
+    const pre = readJson(configPath).hooks?.PreToolUse;
+    if (!Array.isArray(pre)) return false;
+    return pre.some((e) => Array.isArray(e.hooks) && e.hooks.some((h) => typeof h.command === 'string' && h.command.includes(GUARD_MARKER)));
+  } catch {
+    return false;
+  }
+}
+
 export interface HookInstallPaths {
   cocoBin: string;
   codexHooksJson: string;
