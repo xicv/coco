@@ -16,7 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        node: [20, 22]
+        # Node 20 remains the package minimum, but GitHub-hosted Actions runners now reject
+        # Node 20 setup without an insecure compatibility flag. Keep CI on supported current
+        # runtimes while package.json documents the install floor.
+        node: [22, 24]
 
     steps:
       - name: Checkout
