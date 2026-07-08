@@ -1,12 +1,17 @@
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { appendAudit, auditPath } from '../audit.js';
 import { deriveFacts } from '../epoch.js';
 import { FINGERPRINT_N } from '../fingerprint.js';
 import { nextAction } from '../gate.js';
 import { parseOracleVerdict } from '../oracleVerdict.js';
 import type { GoalEvent, GoalState } from '../types.js';
+import { auditValidate } from './audit.js';
 
 export interface EvalCaseResult {
   id: string;
-  area: 'verdict' | 'epoch' | 'gate' | 'privacy' | 'self-improve';
+  area: 'verdict' | 'epoch' | 'gate' | 'audit' | 'privacy' | 'self-improve';
   invariant: string;
   ok: boolean;
   detail?: string;
@@ -42,6 +47,15 @@ function activeGoal(partial: Partial<GoalState> = {}): GoalState {
     events: [],
     ...partial,
   };
+}
+
+function auditInvalidFixture(): boolean {
+  const repo = mkdtempSync(join(tmpdir(), 'coco-eval-audit-'));
+  appendAudit(repo, { v: 1, at: '2026-07-08T00:00:00.000Z', goalId: 'g', action: 'goal-start', state: 'active', events: 0 });
+  appendAudit(repo, { v: 1, at: '2026-07-08T00:01:00.000Z', goalId: 'g', action: 'merge', state: 'achieved', events: 0 });
+  writeFileSync(auditPath(repo), '{bad json\n', { flag: 'a' });
+  const v = auditValidate(repo);
+  return !v.ok && v.invalidRecords === 1 && v.failures.some((f) => f.code === 'merge-before-verify-pass');
 }
 
 const cases: EvalCase[] = [
@@ -93,6 +107,12 @@ const cases: EvalCase[] = [
         }),
         { tHead: 't', treeClean: false, onBranch: true, baseMerged: true },
       ) === 'escalate-human',
+  },
+  {
+    id: 'audit-invalidity-is-detected',
+    area: 'audit',
+    invariant: 'Invalid/torn audit lines and impossible merge ordering are detected before self-improvement trusts them.',
+    run: auditInvalidFixture,
   },
 ];
 
