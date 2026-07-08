@@ -248,6 +248,11 @@ coco-store pack --goal <goalId> --query "<objective>"
 | `skills/` | coco skills to install/sync into your agent skills directory. |
 | `docs/self-evolution.md` | How audit + feedback become eval-backed improvement proposals. |
 
+> **Upgrading to 0.7:** the PM store moved from `.coco-store/` to `.coco/store/` and is now fully
+> local (gitignored with the rest of `.coco/`). Existing stores migrate automatically on the next
+> `coco-store` command — no manual step. If your old `.coco-store/roadmap.md` was committed, git will
+> show it as deleted; commit that deletion.
+
 ## Development
 
 ```sh
