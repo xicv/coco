@@ -38,6 +38,9 @@ import { cocoDone, cocoNext } from './commands/backlog.js';
 import { auditReport } from './commands/audit.js';
 import { readAudit } from './audit.js';
 import { cleanDoctor, runDoctor } from './commands/doctor.js';
+import { runEval } from './commands/eval.js';
+import { listCommandDescriptors } from './commands/registry.js';
+import { setupCodex } from './commands/setupCodex.js';
 import { improveDigest } from './improve/digest.js';
 import { improvePromote } from './improve/promote.js';
 import { improveCheck, improveCheckDiff } from './improve/protected.js';
@@ -61,10 +64,37 @@ export function main(argv: string[] = process.argv.slice(2)): number {
       return 0;
     }
 
+    if (cmd === 'commands') {
+      out({ commands: listCommandDescriptors() });
+      return 0;
+    }
+
+    if (cmd === 'eval') {
+      const res = runEval();
+      out(res);
+      return res.ok ? 0 : 1;
+    }
+
+    if (cmd === 'setup') {
+      if (sub === 'codex') {
+        const { values } = parseArgs({
+          args: rest,
+          options: { apply: { type: 'boolean' }, home: { type: 'string' }, config: { type: 'string' }, 'skills-dir': { type: 'string' } },
+        });
+        out(setupCodex({ apply: values.apply === true, home: values.home, configPath: values.config, skillsDir: values['skills-dir'] }));
+        return 0;
+      }
+      // fall through to unknown-command for typo'd setup subcommands
+    }
+
     if (cmd === 'merge') {
-      const { values } = parseArgs({ args: [sub, ...rest].filter(Boolean), options: { goal: { type: 'string' } }, allowPositionals: true });
+      const { values } = parseArgs({
+        args: [sub, ...rest].filter(Boolean),
+        options: { goal: { type: 'string' }, 'ack-verify-policy-change': { type: 'boolean' } },
+        allowPositionals: true,
+      });
       if (!values.goal) throw new Error('coco merge requires --goal');
-      out(mergeGoal(repo, values.goal));
+      out(mergeGoal(repo, values.goal, { ackVerifyPolicyChange: values['ack-verify-policy-change'] === true }));
       return 0;
     }
 
@@ -192,6 +222,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
           options: {
             objective: { type: 'string' },
             acceptance: { type: 'string' },
+            base: { type: 'string' },
             'max-fix-rounds': { type: 'string' },
             'max-wall-min': { type: 'string' },
             'auto-merge': { type: 'boolean' },
@@ -203,6 +234,7 @@ export function main(argv: string[] = process.argv.slice(2)): number {
             objective: values.objective,
             acceptanceChecks: values.acceptance ? values.acceptance.split(';').map((s) => s.trim()).filter(Boolean) : [],
             maxFixRounds: values['max-fix-rounds'] ? Number(values['max-fix-rounds']) : 5,
+            base: values.base,
             autoMergeAllowed: values['auto-merge'] === true ? true : undefined,
             budget: values['max-wall-min'] ? { maxWallClockMin: Number(values['max-wall-min']) } : undefined,
           }),
