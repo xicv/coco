@@ -8,6 +8,7 @@ export interface BacklogTaskInput {
   priority?: 'high' | 'medium' | 'low';
   dependsOn?: string[];
   specId?: string; // the GoalSpec (coco-store card id) this step was decomposed from — emitted as links.spec
+  paths?: string[]; // declared target files (coco-improve traceability) — emitted INSIDE the yaml (JSON-quoted) so path/heading text can't corrupt the backlog node structure
 }
 
 function backlogPath(repo: string): string {
@@ -46,7 +47,12 @@ export function appendBacklogTask(repo: string, task: BacklogTaskInput): void {
     // Quote the id so a SAFE_ID that looks like a YAML core scalar ('123'/'true'/'null') round-trips
     // as a STRING — the backlog parser keeps links values uncoerced (unlike id/dependsOn).
     ...(task.specId ? ['links:', `  spec: ${JSON.stringify(task.specId)}`] : []),
+    // JSON-quoted flow sequence (valid YAML) — keeps arbitrary path text on one line, no heading injection.
+    ...(task.paths?.length ? [`paths: ${JSON.stringify(task.paths)}`] : []),
     '```',
+    // KNOWN LIMITATION (all promote callers, pre-existing): the body is appended raw, so a body line
+    // matching the node heading `### id — title` would create a phantom backlog node. Not specific to
+    // coco-improve; tracked as a follow-up (fence/reject such lines).
     ...(task.body?.trim() ? [task.body.trim()] : []),
   ].join('\n');
 

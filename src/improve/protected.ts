@@ -37,6 +37,11 @@ export const PROTECTED_PATHS: readonly string[] = [
   // the whole store layer — it validates improve's OWN specs, routes that gate, and enforces the
   // local-only privacy boundary (pack sends only shared cards); improve must weaken none of it
   'src/store/**',
+  // --- PM data: an improve-origin DIFF may never edit the task queue or the archived specs (it
+  //     promotes via `coco improve promote`); protecting BACKLOG.md also stops a branch erasing its
+  //     own origin link to slip past the frozen improve-origin gate ---
+  'BACKLOG.md',
+  '.coco-store/**',
   // --- improve's own enforcement + skill guardrails + runtime state ---
   'src/improve/**',
   'skills/coco-improve/**', // improve must not rewrite its own instructions/guardrails
@@ -87,12 +92,14 @@ export function changedFiles(repo: string, base?: string): string[] {
       if (t) names.add(t);
     }
   };
-  for (const args of [['diff', '--name-only', 'HEAD'], ['diff', '--name-only', '--cached']]) {
+  // --no-renames so a protected file's rename surfaces BOTH sides (delete old + add new) — a rename
+  // away from a protected path must not hide the protected source.
+  for (const args of [['diff', '--no-renames', '--name-only', 'HEAD'], ['diff', '--no-renames', '--name-only', '--cached']]) {
     const r = tryGit(repo, args);
     if (r.ok) add(r.out);
   }
   if (base) {
-    const r = tryGit(repo, ['diff', '--name-only', `${base}...HEAD`]);
+    const r = tryGit(repo, ['diff', '--no-renames', '--name-only', `${base}...HEAD`]);
     if (r.ok) add(r.out);
   }
   return [...names];

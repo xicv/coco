@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { auditGoalWrite } from '../audit.js';
 import { checkout, createBranch, gatherLive, isClean, treeOfRef } from '../git.js';
 import { nextAction, type NextAction } from '../gate.js';
+import { isImproveOriginTask } from '../improve/originGate.js';
 import { withLock } from '../lock.js';
 import { findActiveGoal, goalPath, writeGoal } from '../state.js';
 import type { GoalBudget, GoalState } from '../types.js';
@@ -77,6 +78,8 @@ export function goalStart(
       lastActivityAt: now,
       lastOperation: 'goal-start',
       ...(opts.backlogTaskId ? { backlogTaskId: opts.backlogTaskId } : {}),
+      // Freeze improve-origin ONCE, now — never re-derived at merge (branch/store can't retro-flip it).
+      ...(opts.backlogTaskId && isImproveOriginTask(repo, opts.backlogTaskId) ? { improveOrigin: true } : {}),
       ...(opts.autoMergeAllowed ? { autoMergeAllowed: true } : {}),
       ...(opts.budget ? { budget: opts.budget } : {}),
     };

@@ -39,6 +39,7 @@ import { auditReport } from './commands/audit.js';
 import { readAudit } from './audit.js';
 import { cleanDoctor, runDoctor } from './commands/doctor.js';
 import { improveDigest } from './improve/digest.js';
+import { improvePromote } from './improve/promote.js';
 import { improveCheck, improveCheckDiff } from './improve/protected.js';
 import { notify } from './commands/notify.js';
 import { runWatch } from './commands/watch.js';
@@ -339,6 +340,22 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         const res = values.diff ? improveCheckDiff(repo, values.base) : improveCheck(repo, positionals);
         out(res);
         return res.ok ? 0 : 3; // non-zero when a protected path is targeted — gates CI/scripts
+      }
+      if (sub === 'promote') {
+        const { values } = parseArgs({
+          args: rest,
+          options: { spec: { type: 'string' }, id: { type: 'string' }, title: { type: 'string' }, body: { type: 'string' }, paths: { type: 'string' }, priority: { type: 'string' }, 'depends-on': { type: 'string' } },
+        });
+        if (!values.spec || !values.id || !values.title || !values.paths) {
+          throw new Error('usage: coco improve promote --spec <id> --id <taskId> --title <t> --paths <p,...> [--body <b>] [--priority high|medium|low] [--depends-on a,b]');
+        }
+        const csvList = (v?: string): string[] => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []);
+        const res = improvePromote(repo, {
+          spec: values.spec, id: values.id, title: values.title, body: values.body,
+          paths: csvList(values.paths), priority: values.priority as 'high' | 'medium' | 'low' | undefined, dependsOn: csvList(values['depends-on']),
+        });
+        out(res);
+        return res.ok ? 0 : 3; // refused when a target path is protected
       }
       // fall through to the unknown-command error for a typo'd subcommand
     }

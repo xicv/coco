@@ -1,6 +1,7 @@
 import { assessAutoMergeRisk, type RiskReport } from '../autoMergeRisk.js';
 import { checkout, ffMerge, gatherLive, headSha } from '../git.js';
 import { mergeDecision } from '../gate.js';
+import { improveOriginProtectedHits } from '../improve/originGate.js';
 import { withLock } from '../lock.js';
 import { findActiveGoal, touchAndWrite } from '../state.js';
 
@@ -11,6 +12,14 @@ export function mergeGoal(repo: string, id: string): { merged: boolean; reason?:
 
     const decision = mergeDecision(goal, gatherLive(repo, goal));
     if (!decision.allowed) return { merged: false, reason: decision.reason };
+
+    // Fail-closed referee gate: an improve-origin goal may NEVER merge a diff that touches a protected
+    // path (referee / metrics / store / improve-self) — that needs a human-authored referee-change
+    // goal (a plain goal, not linked to a coco-improve spec). Binds to the ACTUAL diff, not declared.
+    const blocked = improveOriginProtectedHits(repo, goal);
+    if (blocked.length) {
+      return { merged: false, reason: `improve-origin change touches protected path(s): ${blocked.join(', ')} — a referee/metric change needs a human-authored goal, not a coco-improve one` };
+    }
 
     // FF-only merge. ffMerge checks out `base` first; if the FF fails (main moved
     // between validation and here), restore the goal branch so a retry is sane.
@@ -67,6 +76,11 @@ export function autoMergeGoal(repo: string, id: string, opts: { expectedSha: str
     // 3. Every existing merge gate (review clean, verify pass, rebased, on-branch, clean tree, epoch).
     const decision = mergeDecision(goal, gatherLive(repo, goal));
     if (!decision.allowed) return keepLooping(decision.reason ?? 'merge gate not satisfied');
+
+    // 3b. Same fail-closed referee gate as the human path — an improve-origin goal touching a
+    // protected path can't merge here either; it needs a human-authored (non-improve) referee goal.
+    const blocked = improveOriginProtectedHits(repo, goal);
+    if (blocked.length) return toHuman(`improve-origin change touches protected path(s): ${blocked.join(', ')} — needs a human-authored referee-change goal, not a coco-improve one`);
 
     // 4. Layer 2 risk-tier — policy read at base (tamper-resistant). A block means "let a human do it".
     const risk = assessAutoMergeRisk(repo, goal.base, goal.branch);

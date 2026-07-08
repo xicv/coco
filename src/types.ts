@@ -38,6 +38,7 @@ export interface GoalState {
   lastOperation?: string;
   backlogTaskId?: string; // the BACKLOG.md task this goal implements (for coco_done after merge)
   autoMergeAllowed?: boolean; // per-goal forward consent: may auto-merge (Layer 2) if green + rebased + risk-tier passes. Set at goal start; never a session/global default.
+  improveOrigin?: boolean; // FROZEN at goal start: this goal builds a coco-improve task, so its diff may never merge a protected path (referee/metrics/store/PM). Derived ONCE from the backlog task's coco-improve spec link — never re-read at merge, so a branch editing its own BACKLOG.md (or a later store change) cannot retro-flip it.
   budget?: GoalBudget;
   inFlight?: InFlight; // a long Oracle/test op currently running (undefined when idle)
   failureLoop?: FailureLoop; // consecutive-same-failure tracker (fingerprint stuck-detection)
