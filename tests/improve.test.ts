@@ -95,7 +95,12 @@ test('improveDigest gates on sample size: too few goals → insufficient-data, w
   seedGoals(repo, 2);
   const d = improveDigest(repo);
   expect(d.sufficient).toBe(false);
-  expect(d.signals.every((s) => s.status === 'insufficient-data' && s.safeToActOn === false)).toBe(true);
+  // The core guarantee: a thin history can never surface an ACTIONABLE finding.
+  expect(d.signals.every((s) => s.safeToActOn === false)).toBe(true);
+  // Every sample-gated signal reports insufficient-data. audit-validity is deliberately exempt —
+  // a corrupt audit substrate must halt self-improvement regardless of window size — but it is
+  // still non-actionable (safeToActOn === false, asserted above).
+  expect(d.signals.filter((s) => s.key !== 'audit-validity').every((s) => s.status === 'insufficient-data')).toBe(true);
   expect(d.antiGoals.length).toBeGreaterThan(0);
 });
 
