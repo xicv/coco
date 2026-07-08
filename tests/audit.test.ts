@@ -2,8 +2,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { appendAudit, auditPath, buildAuditRecord, readAudit, type AuditRecord } from '../src/audit.js';
-import { auditReport } from '../src/commands/audit.js';
+import { appendAudit, appendAuditFeedback, auditPath, buildAuditRecord, readAudit, readAuditDetailed, type AuditRecord } from '../src/audit.js';
+import { auditReport, auditValidate } from '../src/commands/audit.js';
 import { goalOracleUnavailable } from '../src/commands/goalOracle.js';
 import { goalRecord } from '../src/commands/goalRecord.js';
 import { goalStart } from '../src/commands/goalStart.js';
@@ -14,6 +14,9 @@ import { g, tmpRepo } from './helpers.js';
 
 const goal = (over: Partial<GoalState> = {}): GoalState =>
   ({ id: 'g1', state: 'active', events: [], updatedAt: '2026-07-07T00:00:00.000Z', ...over }) as unknown as GoalState;
+
+const review = (verdict: 'clean' | 'blocking', tree: string): Partial<AuditRecord> => ({ phase: 'review', verdict, tree });
+const verify = (verdict: 'pass' | 'fail'): Partial<AuditRecord> => ({ phase: 'verify', verdict });
 
 test('buildAuditRecord: lean record for a non-event op, no phase/verdict', () => {
   const r = buildAuditRecord(goal(), 'goal-start');
@@ -34,7 +37,7 @@ test('buildAuditRecord: carries the fingerprint fail counter when present', () =
   expect(r.failCount).toBe(3);
 });
 
-test('appendAudit + readAudit round-trip; readAudit skips torn lines', () => {
+test('appendAudit + readAudit round-trip; readAudit skips torn lines while detailed read reports them', () => {
   const repo = mkdtempSync(join(tmpdir(), 'coco-audit-'));
   const rec: AuditRecord = { v: 1, at: '2026-07-07T00:00:00.000Z', goalId: 'g1', action: 'goal-start', state: 'active', events: 0 };
   appendAudit(repo, rec);
@@ -42,6 +45,9 @@ test('appendAudit + readAudit round-trip; readAudit skips torn lines', () => {
   const back = readAudit(repo);
   expect(back).toHaveLength(2); // the good record twice, the malformed line skipped
   expect(back[0]).toEqual(rec);
+  const detailed = readAuditDetailed(repo);
+  expect(detailed.invalid).toHaveLength(1);
+  expect(detailed.invalid[0].rawHash).toMatch(/^[0-9a-f]{16}$/);
 });
 
 test('appendAudit is best-effort — never throws even when the path cannot be a directory', () => {
@@ -50,25 +56,26 @@ test('appendAudit is best-effort — never throws even when the path cannot be a
   expect(() => appendAudit(notADir, buildAuditRecord(goal(), 'goal-start'))).not.toThrow();
 });
 
-test('auditReport aggregates fix rounds, verify fails, oracle outages, and human-merge latency', () => {
+test('auditReport aggregates fix rounds, verify fails, oracle outages, human-merge latency, and validity', () => {
   const repo = mkdtempSync(join(tmpdir(), 'coco-audit-'));
   const put = (goalId: string, action: string, at: string, extra: Partial<AuditRecord> = {}) =>
     appendAudit(repo, { v: 1, at, goalId, action, state: extra.state ?? 'active', events: extra.events ?? 0, ...extra });
 
   // goal A: one blocking round, then clean → verify pass → merged 30s later
   put('gA', 'goal-start', '2026-07-07T09:59:00.000Z');
-  put('gA', 'record:review:blocking', '2026-07-07T09:59:10.000Z', { tree: 't1' });
-  put('gA', 'record:review:clean', '2026-07-07T09:59:50.000Z', { tree: 't2' });
-  put('gA', 'record:verify:pass', '2026-07-07T10:00:00.000Z');
+  put('gA', 'record:review:blocking', '2026-07-07T09:59:10.000Z', review('blocking', 't1'));
+  put('gA', 'record:review:clean', '2026-07-07T09:59:50.000Z', review('clean', 't2'));
+  put('gA', 'record:verify:pass', '2026-07-07T10:00:00.000Z', verify('pass'));
   put('gA', 'merge', '2026-07-07T10:00:30.000Z', { state: 'achieved' });
   // goal B: a verify fail and an Oracle outage, never merged
   put('gB', 'goal-start', '2026-07-07T11:00:00.000Z');
-  put('gB', 'record:verify:fail', '2026-07-07T11:01:00.000Z');
+  put('gB', 'record:verify:fail', '2026-07-07T11:01:00.000Z', verify('fail'));
   put('gB', 'oracle-unavailable:review:oracle-timeout', '2026-07-07T11:02:00.000Z');
 
   const rep = auditReport(repo);
   expect(rep.totalRecords).toBe(8);
   expect(rep.totals).toEqual({ goals: 2, fixRounds: 1, verifyFails: 1, oracleOutages: 1, merges: 1 });
+  expect(rep.validity.ok).toBe(true);
 
   const a = rep.goals.find((x) => x.goalId === 'gA')!;
   expect(a).toMatchObject({ fixRounds: 1, verifyFails: 0, oracleOutages: 0, reachedMerge: true, finalState: 'achieved', verifyToMergeSec: 30 });
@@ -79,12 +86,36 @@ test('auditReport aggregates fix rounds, verify fails, oracle outages, and human
 test('auditReport fixRounds counts distinct blocking trees, not blocking-review records', () => {
   const repo = mkdtempSync(join(tmpdir(), 'coco-audit-'));
   const put = (action: string, at: string, tree?: string) =>
-    appendAudit(repo, { v: 1, at, goalId: 'g', action, state: 'active', events: 0, ...(tree ? { tree } : {}) });
+    appendAudit(repo, { v: 1, at, goalId: 'g', action, state: 'active', events: 0, ...(tree ? review('blocking', tree) : {}) });
   put('goal-start', '2026-07-07T00:00:00.000Z');
   put('record:review:blocking', '2026-07-07T00:01:00.000Z', 'tA');
   put('record:review:blocking', '2026-07-07T00:02:00.000Z', 'tA'); // same tree — a re-review, NOT a new fix round
   put('record:review:blocking', '2026-07-07T00:03:00.000Z', 'tB'); // a new tree after a fix
   expect(auditReport(repo).goals[0].fixRounds).toBe(2); // tA, tB — not 3
+});
+
+test('auditValidate catches invalid lines and impossible merge ordering', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'coco-audit-'));
+  appendAudit(repo, { v: 1, at: '2026-07-07T00:00:00.000Z', goalId: 'g', action: 'goal-start', state: 'active', events: 0 });
+  appendAudit(repo, { v: 1, at: '2026-07-07T00:01:00.000Z', goalId: 'g', action: 'merge', state: 'achieved', events: 0 });
+  writeFileSync(auditPath(repo), '{ bad json\n', { flag: 'a' });
+  const v = auditValidate(repo);
+  expect(v.ok).toBe(false);
+  expect(v.invalidRecords).toBe(1);
+  expect(v.failures.map((f) => f.code)).toContain('merge-before-verify-pass');
+});
+
+test('structured feedback is redacted and summarized', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'coco-audit-'));
+  appendAuditFeedback(repo, { goalId: 'g1', kind: 'goal-quality', rating: 2, tags: ['Vague Goal', 'vague goal'], note: 'This raw note must not be stored.' });
+  appendAuditFeedback(repo, { goalId: 'g2', kind: 'goal-quality', rating: 4, tags: ['clear'] });
+  const rec = readAudit(repo).find((r) => r.action === 'feedback:goal-quality')!;
+  expect(JSON.stringify(rec)).not.toContain('raw note');
+  expect(rec.noteHash).toMatch(/^[0-9a-f]{16}$/);
+  const feedback = auditReport(repo).feedback;
+  expect(feedback.total).toBe(2);
+  expect(feedback.byKind['goal-quality'].avgRating).toBe(3);
+  expect(feedback.topTags[0]).toEqual(['vague goal', 1]);
 });
 
 test('goalOracleUnavailable is captured AND its evidence is centrally capped', () => {
