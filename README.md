@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/coco-icon.png" alt="coco" width="180" />
+  <img src="assets/coco-icon.svg" alt="coco" width="180" />
 </p>
 
 # coco
