@@ -1,0 +1,32 @@
+export type CommandEffect = 'read' | 'write' | 'destructive' | 'external';
+
+export interface CommandDescriptor {
+  name: string;
+  surfaces: ('cli' | 'mcp' | 'skill')[];
+  effect: CommandEffect;
+  summary: string;
+  safety?: string;
+}
+
+const COMMANDS: readonly CommandDescriptor[] = [
+  { name: 'coco init', surfaces: ['cli', 'mcp'], effect: 'write', summary: 'Bootstrap .coco and tracked coco.config.json on a clean repo.' },
+  { name: 'coco goal start', surfaces: ['cli', 'mcp', 'skill'], effect: 'write', summary: 'Create one active goal branch from the configured base branch.', safety: 'Refuses dirty trees and concurrent active goals.' },
+  { name: 'coco goal status', surfaces: ['cli', 'mcp', 'skill'], effect: 'read', summary: 'Derive deterministic nextAction from goal state and live git.' },
+  { name: 'coco goal record', surfaces: ['cli', 'mcp', 'skill'], effect: 'write', summary: 'Append plan/implement/review events bound to expectedSha.', safety: 'Review verdicts are parsed from Oracle output; verify is not accepted here.' },
+  { name: 'coco goal verify', surfaces: ['cli', 'mcp', 'skill'], effect: 'external', summary: 'Run the committed verify.testCommand and record pass/fail from exit code.', safety: 'Coco owns verify; agents cannot self-report pass.' },
+  { name: 'coco merge', surfaces: ['cli', 'skill'], effect: 'destructive', summary: 'Human-terminal FF-only merge path.', safety: 'Requires clean review, passing verify, current epoch, clean branch, base ancestry, and explicit ack for verify policy changes.' },
+  { name: 'coco_merge', surfaces: ['mcp', 'skill'], effect: 'destructive', summary: 'Opt-in auto-merge attempt for a single goal.', safety: 'Requires per-goal consent and risk-tier; falls back to human on risk.' },
+  { name: 'coco health', surfaces: ['cli', 'mcp'], effect: 'read', summary: 'Report loop health, stall, conflict, in-flight, and invalid-state conditions.' },
+  { name: 'coco doctor', surfaces: ['cli'], effect: 'read', summary: 'Aggregate local environment, repo, wiring, goal, and data hygiene checks.' },
+  { name: 'coco doctor clean', surfaces: ['cli'], effect: 'destructive', summary: 'Dry-run/apply cleanup of terminal or orphaned verify-run cache only.' },
+  { name: 'coco improve digest', surfaces: ['cli', 'skill'], effect: 'read', summary: 'Summarise structural audit signals with an insufficient-data gate.' },
+  { name: 'coco improve check', surfaces: ['cli', 'skill'], effect: 'read', summary: 'Refuse protected-path targets for self-improvement proposals.' },
+  { name: 'coco improve promote', surfaces: ['cli', 'skill'], effect: 'write', summary: 'Promote one non-protected improve task linked to a local improve-spec.' },
+  { name: 'coco eval', surfaces: ['cli'], effect: 'read', summary: 'Run deterministic safety-regression fixture checks.' },
+  { name: 'coco setup codex', surfaces: ['cli'], effect: 'write', summary: 'Dry-run/apply Codex MCP config and skill sync.' },
+  { name: 'coco-store', surfaces: ['cli', 'skill'], effect: 'write', summary: 'PM layer for ResourceCards, roadmap, backlog, briefs, and visualisation.', safety: 'Must not mutate .coco/goals.' },
+];
+
+export function listCommandDescriptors(): CommandDescriptor[] {
+  return COMMANDS.map((c) => ({ ...c, surfaces: [...c.surfaces] }));
+}
