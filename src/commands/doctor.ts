@@ -1,7 +1,6 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { auditPath } from '../audit.js';
 import { readVerifyConfig, VERIFY_NOT_CONFIGURED_WARNING } from '../cocoConfig.js';
 import { tryGit } from '../git.js';
@@ -10,6 +9,8 @@ import { lockStatus } from '../lock.js';
 import { cocoDir, goalsDir, lockPath } from '../paths.js';
 import { readGoal } from '../state.js';
 import { storeDir } from '../store/paths.js';
+import { cocoVersion } from '../version.js';
+import { auditValidate } from './audit.js';
 import { goalHealth } from './health.js';
 import { defaultPaths, isGuardInstalled } from './installHooks.js';
 import { listWatchdogs } from './watchdog.js';
@@ -61,26 +62,6 @@ function dirSize(dir: string): number {
   return total;
 }
 
-/** coco's own version — walk up from this module to the nearest package.json (works in dev + dist). */
-function cocoVersion(): string {
-  try {
-    let dir = dirname(fileURLToPath(import.meta.url));
-    for (let i = 0; i < 6; i++) {
-      const p = join(dir, 'package.json');
-      if (existsSync(p)) {
-        const v = (JSON.parse(readFileSync(p, 'utf8')) as { version?: string }).version;
-        if (v) return v;
-      }
-      const parent = dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  } catch {
-    // fall through
-  }
-  return 'unknown';
-}
-
 /** .gitignore lists `.coco/` (the check goalStart uses to gate `coco init`). Tolerant of a read error. */
 function cocoInitialized(repo: string): boolean {
   try {
@@ -109,7 +90,7 @@ function environmentChecks(repo: string): Check[] {
   const major = Number(process.versions.node.split('.')[0]);
   const git = tryGit(repo, ['--version']);
   return [
-    { group: 'environment', name: 'node', status: major >= 18 ? 'ok' : 'fail', detail: `${process.version} (need >=18)` },
+    { group: 'environment', name: 'node', status: major >= 20 ? 'ok' : 'fail', detail: `${process.version} (need >=20)` },
     { group: 'environment', name: 'git', status: git.ok ? 'ok' : 'fail', detail: git.ok ? git.out.trim() : 'git not found on PATH' },
     { group: 'environment', name: 'coco version', status: 'ok', detail: cocoVersion() },
   ];
@@ -167,8 +148,10 @@ function dataChecks(repo: string, now: number): Check[] {
   const ls = lockStatus(lockPath(repo), now);
   const lockDetail = ls.stale ? 'stale (held by a dead process) — `coco doctor clean`' : ls.held ? 'held (op in progress)' : 'free';
   const logBytes = fileSize(auditPath(repo)) + fileSize(incidentsPath(repo));
+  const audit = auditValidate(repo);
   return [
     { group: 'data', name: 'goals', status: 'ok', detail: goalFiles.length ? JSON.stringify(byState) : 'none' },
+    { group: 'data', name: 'audit validity', status: audit.ok ? 'ok' : 'fail', detail: audit.ok ? `${audit.validRecords} valid record(s)` : `${audit.failures.length} failure(s), ${audit.invalidRecords} invalid line(s) — run \`coco audit validate\`` },
     { group: 'data', name: 'verify-runs', status: runs.length > 20 ? 'warn' : 'ok', detail: `${runs.length} run(s), ${Math.round(runBytes / 1024)} KB` + (runs.length > 20 ? ' — `coco doctor clean`' : '') },
     { group: 'data', name: 'logs', status: 'ok', detail: `audit+incidents ${Math.round(logBytes / 1024)} KB` },
     { group: 'data', name: 'lock', status: ls.stale ? 'warn' : 'ok', detail: lockDetail },
@@ -261,5 +244,5 @@ export function cleanDoctor(repo: string, opts: { apply?: boolean } = {}): Clean
       }
     }
   }
-  return { applied: opts.apply === true, targets, reclaimedBytes: reclaimed };
+  return { applied: opts.apply === true, targets, reclaimedBytes: opts.apply ? reclaimed : targets.reduce((n, t) => n + t.bytes, 0) };
 }
