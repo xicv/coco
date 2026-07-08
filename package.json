@@ -22,6 +22,7 @@
   ],
   "bin": {
     "coco": "dist/coco.js",
+    "coco-mcp": "dist/coco-mcp.js",
     "coco-store": "dist/coco-store.js"
   },
   "files": [
@@ -29,16 +30,18 @@
     "skills"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
     "build": "tsdown",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "ci": "pnpm typecheck && pnpm test && pnpm build",
     "dev": "tsx src/bin/coco.ts",
-    "prepublishOnly": "pnpm build"
+    "prepublishOnly": "pnpm ci"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
