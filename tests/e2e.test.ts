@@ -24,14 +24,18 @@ function head(repo: string): string {
 test('end-to-end happy path via the CLI reaches merge-gate then merges', { timeout: 30000 }, () => {
   const repo = mkdtempSync(join(tmpdir(), 'coco-e2e-'));
   coco(repo, ['init']);
+  // Configure verify on the base branch before the goal starts. Changing verify.testCommand inside
+  // a goal is now a separate human-acknowledged policy change, not the happy path.
+  writeFileSync(join(repo, 'coco.config.json'), `${JSON.stringify({ verify: { testCommand: 'true' } })}\n`);
+  gitc(repo, ['add', 'coco.config.json']);
+  gitc(repo, ['commit', '-m', 'configure verify']);
   const id = JSON.parse(coco(repo, ['goal', 'start', '--objective', 'e2e feature'])).goalId;
 
   coco(repo, ['goal', 'record', '--goal', id, '--phase', 'plan', '--expected-sha', head(repo)]);
 
-  // a real change + the tracked verify config so coco runs the tests itself (exit 0 → pass)
+  // a real change; coco runs the base-configured tests itself (exit 0 → pass)
   writeFileSync(join(repo, 'f.txt'), 'feature\n');
-  writeFileSync(join(repo, 'coco.config.json'), `${JSON.stringify({ verify: { testCommand: 'true' } })}\n`);
-  gitc(repo, ['add', 'f.txt', 'coco.config.json']);
+  gitc(repo, ['add', 'f.txt']);
   gitc(repo, ['commit', '-m', 'impl']);
 
   coco(repo, ['goal', 'record', '--goal', id, '--phase', 'implement', '--expected-sha', head(repo)]);
