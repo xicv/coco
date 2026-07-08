@@ -42,7 +42,10 @@ const reviewUnavailableSchema = z
 
 const failureLoopSchema = z
   .object({
-    key: z.string().min(1),
+    // Empty string is the intentional sentinel for "no active failure track" (fingerprint.ts
+    // returns key:'' with count:0 on reset/resolve). History entries below are only ever appended
+    // for real failures, so those keep the non-empty constraint.
+    key: z.string(),
     count: z.number().int().nonnegative(),
     history: z.array(
       z
