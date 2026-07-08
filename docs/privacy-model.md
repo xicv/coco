@@ -8,7 +8,7 @@ These artifacts are local runtime/project data and should not be pasted into Ora
 
 - `.coco/**`, including goal ledgers, verify-run cache, incidents, and audit logs.
 - `.coco/audit.ndjson` and `.coco/incidents.ndjson`.
-- `.coco-store/**` cards with `visibility: "local"`.
+- `.coco/store/**` cards with `visibility: "local"`.
 - Improve specs and audit-derived self-improvement notes.
 - Secrets, credentials, private keys, env files, tokens, browser profiles, and local config with account data.
 
@@ -18,7 +18,7 @@ These may be sent to Oracle only when the user/skill intentionally includes them
 
 - The current task objective.
 - The bounded `coco-store pack` brief.
-- `.coco-store` cards marked `visibility: "shared"`.
+- `.coco/store` cards marked `visibility: "shared"`.
 - A bounded background excerpt supplied through `coco-store pack --background` or `--background-stdin`.
 - A committed diff such as `git diff <base>...HEAD` for review.
 

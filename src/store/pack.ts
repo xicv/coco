@@ -154,7 +154,7 @@ function backgroundSection(repo: string, opts: { backgroundFile?: string; backgr
 
 /** Budget-bounded context brief for a coco-loop run: the roadmap position + the most relevant
  * resource cards (ranked by `query`, else most-recent), capped at `budgetBytes`. Written to
- * .coco-store/briefs/<goalId>.md (git-ignored) and returned. This is what a loop starts from. */
+ * .coco/store/briefs/<goalId>.md (git-ignored) and returned. This is what a loop starts from. */
 export function buildBrief(
   repo: string,
   opts: { goalId: string; query?: string; budgetBytes?: number; backgroundFile?: string; backgroundText?: string },

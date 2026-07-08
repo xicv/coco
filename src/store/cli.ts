@@ -31,6 +31,7 @@ function readStdinHead(maxBytes: number): string {
   return buf.subarray(0, off).toString('utf8');
 }
 import { storeAdd, storeFind, storeGroup, storeInit, storeLink, storeList, storePack, storeProgress, storePromote, storeRoadmap, storeShow, storeViz, type GroupBy, type LinkRel } from './commands.js';
+import { migrateLegacyStore } from './migrate.js';
 import { storeView } from '../progress/store.js';
 import { progressField, renderView } from '../progress/view.js';
 import type { ResourceCard } from './schema.js';
@@ -51,6 +52,10 @@ function csv(v?: string): string[] | undefined {
 
 export function main(argv: string[] = process.argv.slice(2)): number {
   const repo = repoRoot();
+  // One-time move of a pre-0.7 `.coco-store/` → `.coco/store/`. Notice goes to stderr so stdout
+  // stays clean JSON. No-op once migrated.
+  const migration = migrateLegacyStore(repo);
+  if (migration.migrated) process.stderr.write(`coco-store: migrated legacy .coco-store/ → .coco/store/ (one-time)\n`);
   const [cmd, ...rest] = argv;
   try {
     if (cmd === 'init') {

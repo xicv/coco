@@ -12,7 +12,7 @@ This repository builds `coco`, a small loop-engineering referee for AI coding ag
 - `src/commands/eval.ts` contains deterministic safety-regression fixtures. Add a fixture when fixing a state-machine or false-green class.
 - `skills/**` contains the user-facing Codex/Claude skills, including queue/night orchestration. Skill text is part of the safety surface.
 - `.coco/**` is local runtime state and must not be committed.
-- `.coco-store/**` is the local PM store. Treat audit-derived/self-improvement content as local unless code explicitly marks it shared.
+- `.coco/store/**` is the local PM store (moved from `.coco-store/` in 0.7; the whole `.coco/` tree is gitignored). Treat audit-derived/self-improvement content as local unless code explicitly marks it shared.
 
 ## Commands
 

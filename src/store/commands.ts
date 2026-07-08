@@ -5,20 +5,12 @@ import { appendBacklogTask, type BacklogTaskInput } from './backlogPromote.js';
 import { rankedFind } from './find.js';
 import { readCards, upsertCard } from './manifest.js';
 import { buildBrief } from './pack.js';
-import { STORE_GITIGNORE_LINES, briefsDir, pendingDir, roadmapPath, storeDir } from './paths.js';
+import { briefsDir, ensureGitignore, pendingDir, roadmapPath, storeDir } from './paths.js';
 import { contentHashOf, makeCardId, parseCard, type ResourceCard } from './schema.js';
 import { assertGoalSpecHasRequiredSections, assertImproveSpecHasRequiredSections } from './specValidate.js';
 
-function ensureGitignore(repo: string): void {
-  const p = join(repo, '.gitignore');
-  const existing = existsSync(p) ? readFileSync(p, 'utf8') : '';
-  const lines = existing.split('\n').map((l) => l.trim());
-  const missing = STORE_GITIGNORE_LINES.filter((l) => !lines.includes(l));
-  if (missing.length) appendFileSync(p, `${existing && !existing.endsWith('\n') ? '\n' : ''}# coco-store local data\n${missing.join('\n')}\n`);
-}
-
-/** Create .coco-store/ + a starter roadmap.md and ensure .gitignore hides local data. Idempotent.
- * Boundary note: coco-store writes ONLY .coco-store/**, BACKLOG.md (promote), and the brief path;
+/** Create .coco/store/ + a starter roadmap.md and ensure .gitignore hides local data. Idempotent.
+ * Boundary note: coco-store writes ONLY .coco/store/**, BACKLOG.md (promote), and the brief path;
  * .gitignore is the one extra setup write (idempotent — init seeds it, viz refreshes it before
  * writing its pending output), exactly as `coco init` does; never .coco/goals. */
 export function storeInit(repo: string): { store: string } {
@@ -201,7 +193,7 @@ export function storePromote(repo: string, task: BacklogTaskInput): { promoted: 
 const vizLabel = (s: string): string => s.replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 60);
 
 /** Emit a STRUCTURAL mermaid project graph — roadmap → spec cards → their backlog tasks (linked via
- * `links.spec`) → card→card typed links — to the git-ignored `.coco-store/pending/` dir (no status
+ * `links.spec`) → card→card typed links — to the git-ignored `.coco/store/pending/` dir (no status
  * labels, so it stays a pure structure view and never churns a tracked file). */
 export function storeViz(repo: string): { path: string; mermaid: string } {
   const cards = readCards(repo);
@@ -240,7 +232,7 @@ export function storeViz(repo: string): { path: string; mermaid: string } {
   for (const c of cards) for (const l of c.links ?? []) edges.push(`  ${cardNode(c.id)} -. ${vizLabel(l.rel)} .-> ${cardNode(l.to)}`);
 
   const mermaid = ['graph TD', ...decl.values(), ...edges].join('\n');
-  ensureGitignore(repo); // guarantee .coco-store/pending/ is ignored even if `coco-store init` was never run
+  ensureGitignore(repo); // guarantee .coco/store/ is ignored even if `coco-store init` was never run
   mkdirSync(pendingDir(repo), { recursive: true });
   const path = join(pendingDir(repo), 'project-graph.md');
   writeFileSync(path, `# Project graph\n\n\`\`\`mermaid\n${mermaid}\n\`\`\`\n`);

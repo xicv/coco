@@ -41,8 +41,9 @@ export const PROTECTED_PATHS: readonly string[] = [
   //     promotes via `coco improve promote`); protecting BACKLOG.md also stops a branch erasing its
   //     own origin link to slip past the frozen improve-origin gate ---
   'BACKLOG.md',
-  '.coco-store/**',
-  // --- improve's own enforcement + skill guardrails + runtime state ---
+  '.coco-store/**', // legacy pre-0.7 store path — kept so an un-migrated store stays protected
+  // --- improve's own enforcement + skill guardrails + runtime state (the store now lives under
+  //     .coco/store/, already covered by the .coco/** glob below) ---
   'src/improve/**',
   'skills/coco-improve/**', // improve must not rewrite its own instructions/guardrails
   '.coco/**',

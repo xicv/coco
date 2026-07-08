@@ -13,7 +13,7 @@ Invoke: `$coco-store <intent>` (Codex) / `/coco-store <intent>` (Claude Code).
 
 1. **It's a shell CLI on PATH.** Run `coco-store <cmd>` via the shell tool; it prints JSON — parse it and report the useful bits (ids, counts, paths), don't dump raw JSON unless asked.
 2. **Read-only by default.** `list` / `show` / `find` / `progress` / `viz` / `pack` / `roadmap` (no `--append`) never change anything — run them freely. Only **mutate** (`add`, `promote`, `link`, `roadmap --append`, `init`) when the user clearly wants to change something; confirm if ambiguous.
-3. **Respect the one-way boundary.** coco-store writes ONLY `.coco-store/**`, `BACKLOG.md`, and brief paths — never `.coco/goals` or a merge. Never ask it to.
+3. **Respect the one-way boundary.** coco-store writes ONLY `.coco/store/**`, `BACKLOG.md`, and brief paths — never `.coco/goals` or a merge. Never ask it to.
 4. **Never start coco-loop or merge.** coco-store only organises / tracks / visualises. Building + merging is the CTO (`$coco-loop`) + the human.
 
 ## Intent → command
@@ -26,7 +26,7 @@ Invoke: `$coco-store <intent>` (Codex) / `/coco-store <intent>` (Claude Code).
 | add a doc / decision / note | `coco-store add --type <type> --title "<title>" [--tags a,b] [--category c] <file>` (or `--body "…"`) |
 | see project / backlog progress | `coco-store progress` (grouped by originating spec) |
 | show a native project-pulse card | `coco-store status` → echo its `markdown` verbatim (backlog + specs + roadmap) |
-| **visualise** the project | `coco-store viz` → then show the mermaid at `.coco-store/pending/project-graph.md` |
+| **visualise** the project | `coco-store viz` → then show the mermaid at `.coco/store/pending/project-graph.md` |
 | link two resources | `coco-store link --from <id> --to <id> --rel defines\|references\|relates-to\|depends-on` |
 | build a context brief for a goal | `coco-store pack --goal <id> [--query <q>]` |
 | view or append the roadmap | `coco-store roadmap [--append "<line>"]` |

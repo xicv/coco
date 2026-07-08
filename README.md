@@ -242,7 +242,7 @@ coco-store pack --goal <goalId> --query "<objective>"
 | Path | Purpose |
 |---|---|
 | `.coco/` | Local runtime state, goal ledgers, verify runs, audit logs. Gitignored. |
-| `.coco-store/` | Local PM store: specs, resources, links, roadmap context. |
+| `.coco/store/` | Local PM store: specs, resources, links, roadmap context. Gitignored with the rest of `.coco/`. |
 | `coco.config.json` | Committed repo policy: verify command, workflow base branch, auto-merge policy. |
 | `AGENTS.md` | Durable repo guidance for Codex/agents. |
 | `skills/` | coco skills to install/sync into your agent skills directory. |

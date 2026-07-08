@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { storeAdd, storeFind, storeGroup, storeInit, storeLink, storeList, storePack, storeProgress, storePromote, storeRoadmap, storeShow, storeViz, type LinkRel } from '../src/store/commands.js';
 import { main as storeCli } from '../src/store/cli.js';
+import { migrateLegacyStore } from '../src/store/migrate.js';
 import { setStatus } from '../src/backlog.js';
 import { cocoNext } from '../src/commands/backlog.js';
 import { initRepo } from '../src/commands/init.js';
@@ -20,13 +21,41 @@ test('promote rejects a task body that would corrupt the backlog (node heading /
   expect(() => storePromote(repo, { id: 'task-z', title: 'z', body: '### Steps\ndo it\n```\ncode\n```' })).not.toThrow();
 });
 
-test('init creates .coco-store + roadmap and ignores local data (roadmap stays tracked)', () => {
+test('init creates .coco/store + roadmap and gitignores the whole store (fully local)', () => {
   const repo = tmpRepo();
   storeInit(repo);
-  expect(existsSync(join(repo, '.coco-store', 'roadmap.md'))).toBe(true);
+  expect(existsSync(join(repo, '.coco', 'store', 'roadmap.md'))).toBe(true);
   const gi = readFileSync(join(repo, '.gitignore'), 'utf8');
-  expect(gi).toMatch(/\.coco-store\/resources\.ndjson/);
-  expect(gi).not.toMatch(/\.coco-store\/roadmap\.md/); // roadmap is tracked
+  expect(gi).toMatch(/\.coco\/store\//); // the single wholesale line — covers roadmap.md too
+  expect(gi).not.toMatch(/\.coco-store/); // legacy per-subpath rules are gone
+});
+
+test('migrateLegacyStore moves a pre-0.7 .coco-store/ into .coco/store/, preserving data', () => {
+  const repo = tmpRepo();
+  mkdirSync(join(repo, '.coco-store', 'briefs'), { recursive: true });
+  writeFileSync(join(repo, '.coco-store', 'roadmap.md'), '# Roadmap\nlegacy content\n');
+
+  const r = migrateLegacyStore(repo);
+  expect(r.migrated).toBe(true);
+  expect(existsSync(join(repo, '.coco-store'))).toBe(false); // legacy dir is gone
+  expect(readFileSync(join(repo, '.coco', 'store', 'roadmap.md'), 'utf8')).toContain('legacy content');
+  expect(existsSync(join(repo, '.coco', 'store', 'briefs'))).toBe(true); // subdirs carried over
+  // fail-closed: the migrated store is git-ignored even without a prior `coco init`
+  expect(readFileSync(join(repo, '.gitignore'), 'utf8')).toContain('.coco/store/');
+
+  // idempotent: a second call is a no-op
+  expect(migrateLegacyStore(repo).migrated).toBe(false);
+});
+
+test('migrateLegacyStore never clobbers an already-migrated store', () => {
+  const repo = tmpRepo();
+  storeInit(repo); // creates .coco/store/ with a fresh roadmap
+  writeFileSync(join(repo, '.coco', 'store', 'roadmap.md'), '# Roadmap\ncurrent\n');
+  mkdirSync(join(repo, '.coco-store'), { recursive: true }); // a stale legacy dir also present
+  writeFileSync(join(repo, '.coco-store', 'roadmap.md'), '# Roadmap\nstale\n');
+
+  expect(migrateLegacyStore(repo).migrated).toBe(false); // new store exists → refuse to overwrite
+  expect(readFileSync(join(repo, '.coco', 'store', 'roadmap.md'), 'utf8')).toContain('current');
 });
 
 test('add is idempotent by content; list + show reflect it', () => {
@@ -347,11 +376,11 @@ test('viz emits a structural mermaid graph (roadmap → spec → tasks) to the g
   expect(r.mermaid).toMatch(/roadmap --> n\d/); // roadmap → spec node
   expect(r.mermaid).toContain('Step One'); // task node labelled
   expect(r.mermaid).toMatch(/n\d+ --> t\d/); // spec → its backlog task (via links.spec)
-  expect(r.path).toContain(join('.coco-store', 'pending')); // gitignored dir — never a committed/churning file
+  expect(r.path).toContain(join('.coco', 'store', 'pending')); // gitignored dir — never a committed/churning file
   expect(existsSync(r.path)).toBe(true);
   expect(readFileSync(r.path, 'utf8')).toContain('```mermaid');
   // viz ensures its own gitignore even without a prior `coco-store init` (so the output is never tracked)
-  expect(readFileSync(join(repo, '.gitignore'), 'utf8')).toContain('.coco-store/pending/');
+  expect(readFileSync(join(repo, '.gitignore'), 'utf8')).toContain('.coco/store/');
 });
 
 test('promote appends a coco-loop-readable ready task (the store→loop contract)', () => {

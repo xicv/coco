@@ -58,7 +58,7 @@ test('store operations — incl. pack — never touch .coco/goals (one-way bound
   expect(snapshotGoals(repo)).toEqual(before);
 });
 
-test('pack refuses a path-traversal goalId — cannot escape .coco-store/briefs into .coco/goals', () => {
+test('pack refuses a path-traversal goalId — cannot escape .coco/store/briefs into .coco/goals', () => {
   const repo = tmpRepo();
   initRepo(repo);
   goalStart(repo, { objective: 'x', maxFixRounds: 3, acceptanceChecks: [] });

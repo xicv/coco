@@ -47,7 +47,7 @@ dependsOn: [store-link]
 links:
   spec: "coco-store-pm-enhancements-loop-brief-wiring-cro-85d4da01"
 ```
-`coco-store viz` — emit a Markdown `mermaid` graph to `.coco-store/pending/` (GITIGNORED — not committed, avoids churn/git-log noise). STRUCTURAL only (no status labels/counts → no store-progress dep): Roadmap → spec-type cards → backlog tasks where `task.links.spec === spec.id` → card→card `links`. Verify: test asserts the ```mermaid``` block + expected nodes/edges, the output path is gitignored, + CLI smoke.
+`coco-store viz` — emit a Markdown `mermaid` graph to `.coco/store/pending/` (GITIGNORED — not committed, avoids churn/git-log noise). STRUCTURAL only (no status labels/counts → no store-progress dep): Roadmap → spec-type cards → backlog tasks where `task.links.spec === spec.id` → card→card `links`. Verify: test asserts the ```mermaid``` block + expected nodes/edges, the output path is gitignored, + CLI smoke.
 
 ### xagent-e2e — HUMAN: cross-agent E2E from Codex.app
 ```yaml

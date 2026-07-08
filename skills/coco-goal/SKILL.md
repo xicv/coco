@@ -77,5 +77,5 @@ Echo it **verbatim** (fill in the values), as its own message, on each phase ent
 
 - **Composes, doesn't duplicate.** Use the existing **Explore** capability for codebase reading, web search for research, and **grill-me** / **brainstorming** for the (bounded) interactive refinement — don't reimplement them here.
 - **One GoalSpec → N loop goals.** A big goal becomes several independently verifiable backlog steps; coco-loop runs one at a time (one goal per repo). Keep each step small enough to pass its own review + verify.
-- **Archive is durable.** The spec card lives in `.coco-store` (the PM layer), so the goal survives session drops and stays trackable/linkable — the CEO artifact, separate from the loop's runtime state.
+- **Archive is durable.** The spec card lives in `.coco/store` (the PM layer), so the goal survives session drops and stays trackable/linkable — the CEO artifact, separate from the loop's runtime state.
 - **coco-goal never merges, never starts the loop, never writes `.coco/goals`.** It only authors, archives (`coco-store add`), and promotes (`coco-store promote`). Every build/merge decision stays with the human via coco-loop.
