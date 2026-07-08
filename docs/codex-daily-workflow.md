@@ -44,9 +44,10 @@ Run:
 ```sh
 coco doctor
 coco-store status
+coco next
 ```
 
-Use the doctor output to catch broken local wiring before starting a long loop. Use the store status card to see backlog/spec state without reading the whole repository.
+Use the doctor output to catch broken local wiring before starting a long loop. Use the store status card and next-task command to see backlog/spec state without reading the whole repository.
 
 ## Turning intent into work
 
@@ -57,6 +58,16 @@ $coco-goal <intent>
 ```
 
 The goal skill should read the repo, research current external constraints where relevant, produce a strong GoalSpec, archive it as a `coco-store` spec, promote loop-sized tasks to `BACKLOG.md`, and stop.
+
+## Choosing from the queue
+
+To inspect the next ready task without implementing it:
+
+```text
+$coco-queue
+```
+
+This is read-only. It calls the code-owned queue first (`coco next` / `coco_next`), summarizes why the task is ready, and stops with the next suggested command.
 
 ## Building one task
 
@@ -79,6 +90,30 @@ $coco-loop --auto <objective>
 ```
 
 Auto-merge is still gated by clean review, coco-owned verify, base ancestry, risk policy, unchanged verification policy, and per-goal consent. Risk or verify-policy fallback returns to the human merge path.
+
+## Overnight one-task mode
+
+For a bounded “work while I sleep” attempt:
+
+```text
+$coco-night
+```
+
+`$coco-night` is queue + loop, not a daemon. It picks exactly one ready task, runs one normal coco-loop attempt, and leaves a wake-up report. By default it stops at `merge-gate`.
+
+Only use auto when you explicitly want per-goal forward consent:
+
+```text
+$coco-night --auto
+```
+
+If the queue is empty and you want coco to create one small next task first:
+
+```text
+$coco-night --plan-next
+```
+
+Use Codex app Automations only after `$coco-night` works manually; skills define the method, automations define the schedule.
 
 ## Base branch
 
@@ -112,7 +147,7 @@ Run:
 $coco-improve
 ```
 
-only when there is enough audit history. The improve skill should propose exactly one local improve-spec and one non-protected backlog task, then stop. It must not edit live code, start a loop, or merge.
+only when there is enough valid audit history. The improve skill should propose exactly one local improve-spec and one non-protected backlog task, then stop. It must not edit live code, start a loop, or merge.
 
 ## Pre-PR verification
 
@@ -133,6 +168,7 @@ pnpm ci
 
 - `coco doctor` reports `oracle MCP` missing: configure Oracle before plan/review gates.
 - `goal status` warns about `verify.testCommand`: set `verify.testCommand` in committed `coco.config.json`.
+- `$coco-night` finds no ready task: run `$coco-goal <intent>` or `$coco-night --plan-next`.
 - `merge` refuses with `ack-verify-policy-change`: verify policy changed in the goal diff; inspect it, then approve the explicit acknowledgement command only if intended.
 - `health` reports `review-unavailable`: fix Oracle login/wiring, then resume with `coco_goal_op_clear`.
 - `health` reports `stalled`: inspect the current `nextAction`; do not guess the phase from chat memory.
