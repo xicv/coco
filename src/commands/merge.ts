@@ -101,7 +101,7 @@ export function autoMergeGoal(repo: string, id: string, opts: { expectedSha: str
     // 3c. Auto-merge never acknowledges verify policy changes. Those must fall back to an explicit
     // human merge command carrying --ack-verify-policy-change.
     const policyBlock = verifyPolicyMergeBlock(repo, goal.base, false);
-    if (policyBlock) return toHuman(policyBlock);
+    if (policyBlock) return { ...toHuman(policyBlock), humanCommand: `coco merge --goal ${id} --ack-verify-policy-change` };
 
     // 4. Layer 2 risk-tier — policy read at base (tamper-resistant). A block means "let a human do it".
     const risk = assessAutoMergeRisk(repo, goal.base, goal.branch);
