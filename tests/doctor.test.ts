@@ -7,6 +7,7 @@ import { goalStart } from '../src/commands/goalStart.js';
 import { initRepo } from '../src/commands/init.js';
 import { isGuardInstalled } from '../src/commands/installHooks.js';
 import { goalsDir } from '../src/paths.js';
+import type { GoalState } from '../src/types.js';
 import { g, tmpRepo } from './helpers.js';
 
 function initedRepo(): string {
@@ -18,6 +19,10 @@ function initedRepo(): string {
 }
 // An EMPTY home so the wiring checks read no real ~/.codex/~/.claude config.
 const emptyHome = (): string => mkdtempSync(join(tmpdir(), 'coco-home-'));
+
+function goalFixture(id: string, state: GoalState['state']): GoalState {
+  return { id, objective: id, branch: `coco/${id}`, base: 'main', state, maxFixRounds: 3, acceptanceChecks: [], events: [] };
+}
 
 function mkRun(repo: string, runId: string, goalId?: string): string {
   const dir = join(repo, '.coco', 'verify-runs', runId);
@@ -32,13 +37,14 @@ test('runDoctor produces a grouped report with a consistent summary', () => {
   const rep = runDoctor(repo, { home: emptyHome() });
 
   const names = rep.checks.map((c) => c.name);
-  expect(names).toEqual(expect.arrayContaining(['node', 'git', 'git repo', 'coco initialized', 'verify.testCommand', 'oracle MCP', 'active goal']));
+  expect(names).toEqual(expect.arrayContaining(['node', 'git', 'git repo', 'coco initialized', 'verify.testCommand', 'oracle MCP', 'active goal', 'audit validity']));
   expect(rep.summary.ok + rep.summary.warn + rep.summary.fail).toBe(rep.checks.length); // every check tallied
 
   const by = (n: string) => rep.checks.find((c) => c.name === n)!;
   expect(by('node').status).toBe('ok');
   expect(by('git repo').status).toBe('ok');
   expect(by('coco initialized').status).toBe('ok');
+  expect(by('audit validity').status).toBe('ok');
   expect(by('active goal').detail).toBe('no active goal'); // fresh init, none active
   expect(by('oracle MCP').status).toBe('warn'); // empty home → not registered
 });
@@ -57,8 +63,8 @@ test('cleanDoctor: reclaims terminal + orphaned runs only; preserves active/bloc
   const repo = initedRepo();
   const { goalId } = goalStart(repo, { objective: 'doctor clean', maxFixRounds: 5, acceptanceChecks: [] });
   // sibling goal files in terminal + blocked lifecycle states
-  writeFileSync(join(goalsDir(repo), 'goal-term.json'), JSON.stringify({ id: 'goal-term', state: 'achieved', events: [] }));
-  writeFileSync(join(goalsDir(repo), 'goal-block.json'), JSON.stringify({ id: 'goal-block', state: 'blocked', events: [] }));
+  writeFileSync(join(goalsDir(repo), 'goal-term.json'), JSON.stringify(goalFixture('goal-term', 'achieved')));
+  writeFileSync(join(goalsDir(repo), 'goal-block.json'), JSON.stringify(goalFixture('goal-block', 'blocked')));
 
   const activeRun = mkRun(repo, 'run-active', goalId); // active → preserve
   const blockedRun = mkRun(repo, 'run-blocked', 'goal-block'); // blocked/resumable → preserve
@@ -68,7 +74,7 @@ test('cleanDoctor: reclaims terminal + orphaned runs only; preserves active/bloc
 
   const dry = cleanDoctor(repo);
   expect(dry.applied).toBe(false);
-  expect(dry.reclaimedBytes).toBe(0);
+  expect(dry.reclaimedBytes).toBeGreaterThan(0);
   expect(dry.targets.map((t) => t.path).sort()).toEqual([orphanRun, terminalRun].sort());
   expect(existsSync(terminalRun)).toBe(true); // dry-run deletes nothing
 
