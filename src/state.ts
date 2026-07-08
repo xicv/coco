@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { auditGoalWrite } from './audit.js';
+import { parseGoalFile, stampGoalSchema } from './goalSchema.js';
 import { goalsDir } from './paths.js';
 import type { GoalState } from './types.js';
 
@@ -10,13 +11,13 @@ export function goalPath(repo: string, id: string): string {
 }
 
 export function readGoal(path: string): GoalState {
-  return JSON.parse(readFileSync(path, 'utf8')) as GoalState;
+  return parseGoalFile(readFileSync(path, 'utf8'));
 }
 
 /** Atomic write: temp file + rename. */
 export function writeGoal(path: string, goal: GoalState): void {
   const tmp = `${path}.${randomBytes(6).toString('hex')}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(goal, null, 2)}\n`);
+  writeFileSync(tmp, `${JSON.stringify(stampGoalSchema(goal), null, 2)}\n`);
   renameSync(tmp, path);
 }
 
