@@ -27,6 +27,7 @@ export function cocoGoalStart(a: {
   acceptanceChecks?: string[];
   maxFixRounds?: number;
   backlogTaskId?: string;
+  base?: string;
   autoMergeAllowed?: boolean;
   budget?: { maxWallClockMin?: number };
 }): { goalId: string; status: StatusReport } {
@@ -36,6 +37,7 @@ export function cocoGoalStart(a: {
     acceptanceChecks: a.acceptanceChecks ?? [],
     maxFixRounds: a.maxFixRounds ?? 5,
     backlogTaskId: a.backlogTaskId,
+    base: a.base,
     autoMergeAllowed: a.autoMergeAllowed,
     budget: a.budget,
   });
