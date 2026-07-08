@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
+import { GOAL_SCHEMA_VERSION } from '../src/goalSchema.js';
 import { withLock } from '../src/lock.js';
 import { cocoDir } from '../src/paths.js';
 import { findActiveGoal, goalPath, readGoal, writeGoal } from '../src/state.js';
@@ -10,12 +11,22 @@ function newGoal(id: string, state: GoalState['state'] = 'active'): GoalState {
   return { id, objective: 'x', branch: `coco/${id}`, base: 'main', state, maxFixRounds: 3, acceptanceChecks: [], events: [] };
 }
 
-test('writeGoal + readGoal round-trips atomically', () => {
+test('writeGoal + readGoal round-trips atomically and stamps schemaVersion', () => {
   const repo = tmpRepo();
   mkdirSync(cocoDir(repo) + '/goals', { recursive: true });
   const p = goalPath(repo, 'g1');
   writeGoal(p, newGoal('g1'));
-  expect(readGoal(p).id).toBe('g1');
+  const got = readGoal(p);
+  expect(got.id).toBe('g1');
+  expect(got.schemaVersion).toBe(GOAL_SCHEMA_VERSION);
+});
+
+test('readGoal rejects malformed-but-parseable goal state', () => {
+  const repo = tmpRepo();
+  mkdirSync(cocoDir(repo) + '/goals', { recursive: true });
+  const p = goalPath(repo, 'bad');
+  writeFileSync(p, JSON.stringify({ id: 'bad', objective: 'x', branch: 'coco/bad', base: 'main', state: 'active', maxFixRounds: 3, acceptanceChecks: [] }));
+  expect(() => readGoal(p)).toThrow(/schema invalid|events/);
 });
 
 test('findActiveGoal returns only the active goal', () => {
