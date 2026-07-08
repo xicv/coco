@@ -7,7 +7,7 @@ import { readCards, upsertCard } from './manifest.js';
 import { buildBrief } from './pack.js';
 import { STORE_GITIGNORE_LINES, briefsDir, pendingDir, roadmapPath, storeDir } from './paths.js';
 import { contentHashOf, makeCardId, parseCard, type ResourceCard } from './schema.js';
-import { assertGoalSpecHasRequiredSections } from './specValidate.js';
+import { assertGoalSpecHasRequiredSections, assertImproveSpecHasRequiredSections } from './specValidate.js';
 
 function ensureGitignore(repo: string): void {
   const p = join(repo, '.gitignore');
@@ -51,7 +51,15 @@ export function storeAdd(repo: string, a: AddInput): ResourceCard {
   const title = a.title ?? (a.file ? basename(a.file) : undefined);
   if (!title) throw new Error('coco-store add: need --title (or a file to take the title from)');
   const type = a.type ?? 'doc';
-  if (type === 'spec') assertGoalSpecHasRequiredSections(body); // a weak GoalSpec must not be archivable
+  // A coco-improve spec is identified by its tag OR its `improve:` title — belt-and-suspenders so it
+  // can't dodge the stricter gate by dropping one signal. It must carry the hypothesis contract AND
+  // stay LOCAL: audit-derived content must never travel to Oracle via `pack`.
+  const isImproveSpec = type === 'spec' && (a.tags?.includes('coco-improve') === true || title.trim().toLowerCase().startsWith('improve:'));
+  if (type === 'spec') {
+    if (isImproveSpec) assertImproveSpecHasRequiredSections(body);
+    else assertGoalSpecHasRequiredSections(body);
+  }
+  const visibility = isImproveSpec ? 'local' : a.visibility; // improve specs are forced local (privacy invariant)
   const owns =
     a.ownsSymbols?.length || a.ownsEndpoints?.length || a.ownsConfig?.length
       ? {
@@ -72,7 +80,7 @@ export function storeAdd(repo: string, a: AddInput): ResourceCard {
     ...(a.intent ? { intent: a.intent } : {}),
     ...(a.kind ? { kind: a.kind } : {}),
     ...(owns ? { owns } : {}),
-    ...(a.visibility ? { visibility: a.visibility } : {}),
+    ...(visibility ? { visibility } : {}),
     ...(a.file ? { sourcePaths: [a.file] } : {}),
   });
   const cards = upsertCard(repo, card);

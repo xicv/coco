@@ -34,8 +34,12 @@ export const PROTECTED_PATHS: readonly string[] = [
   'src/audit.ts',
   'src/commands/audit.ts',
   'src/commands/doctor.ts',
-  // --- improve's own enforcement + runtime state ---
+  // the whole store layer — it validates improve's OWN specs, routes that gate, and enforces the
+  // local-only privacy boundary (pack sends only shared cards); improve must weaken none of it
+  'src/store/**',
+  // --- improve's own enforcement + skill guardrails + runtime state ---
   'src/improve/**',
+  'skills/coco-improve/**', // improve must not rewrite its own instructions/guardrails
   '.coco/**',
 ];
 

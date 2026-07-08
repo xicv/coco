@@ -5,6 +5,8 @@ import { expect, test } from 'vitest';
 import { appendAudit, type AuditRecord } from '../src/audit.js';
 import { improveDigest } from '../src/improve/digest.js';
 import { canonicalize, improveCheck, improveCheckDiff, isProtected } from '../src/improve/protected.js';
+import { storeAdd, storeInit } from '../src/store/commands.js';
+import { assertGoalSpecHasRequiredSections, assertImproveSpecHasRequiredSections } from '../src/store/specValidate.js';
 import { g, tmpRepo } from './helpers.js';
 
 const REPO = '/repo'; // canonicalisation is pure (resolve against this root) — no real fs needed
@@ -108,4 +110,54 @@ test('improveDigest: oracle-reliability is safeToActOn only when it actually fir
 
   // observational signals are never safe optimisation targets
   expect(improveDigest(hot).signals.find((s) => s.key === 'human-merge-latency')!.safeToActOn).toBe(false);
+});
+
+test('slice-2 denylist: the whole store layer + improve skill are protected; the loop skill stays a legit target', () => {
+  for (const p of [
+    'src/store/specValidate.ts', 'src/store/commands.ts', 'src/store/cli.ts', 'src/store/schema.ts', 'src/store/pack.ts',
+    'skills/coco-improve/SKILL.md', 'skills/coco-improve/agents/openai.yaml',
+  ]) {
+    expect(isProtected(REPO, p)).toBe(true);
+  }
+  expect(isProtected(REPO, 'skills/coco-loop/SKILL.md')).toBe(false);
+});
+
+const IMPROVE_SECTIONS = [
+  'Outcome', 'Verification surface', 'Boundaries', 'Predeclared hypothesis', 'Audit evidence window',
+  'Expected mechanism', 'Success criteria', 'Failure criteria', 'Confounders', 'Rejected alternatives', 'Anti-goals',
+];
+const improveSpecBody = (omit?: string): string => IMPROVE_SECTIONS.filter((s) => s !== omit).map((s) => `## ${s}\nx\n`).join('\n');
+
+test('improve-spec gate requires the full hypothesis contract (base GoalSpec sections included)', () => {
+  expect(() => assertImproveSpecHasRequiredSections(improveSpecBody())).not.toThrow();
+  expect(() => assertImproveSpecHasRequiredSections(improveSpecBody('Predeclared hypothesis'))).toThrow(/Predeclared hypothesis/);
+  expect(() => assertImproveSpecHasRequiredSections(improveSpecBody('Boundaries'))).toThrow(/Boundaries/); // base gate still applies
+});
+
+test('storeAdd routes a coco-improve-tagged spec through the stricter gate; plain specs are unaffected', () => {
+  const repo = tmpRepo();
+  storeInit(repo);
+  // an improve-tagged spec missing a contract section is rejected
+  expect(() => storeAdd(repo, { title: 'improve x', body: improveSpecBody('Success criteria'), type: 'spec', tags: ['coco-improve'] })).toThrow(/Success criteria/);
+  // a complete improve spec is accepted (local visibility → never travels to Oracle)
+  expect(storeAdd(repo, { title: 'improve x', body: improveSpecBody(), type: 'spec', tags: ['coco-improve'], visibility: 'local' }).type).toBe('spec');
+  // a NON-improve spec only needs the base GoalSpec sections
+  expect(() => storeAdd(repo, { title: 'plain', body: '## Outcome\nx\n## Verification surface\nx\n## Boundaries\nx\n', type: 'spec' })).not.toThrow();
+});
+
+test('an improve spec is identified by tag OR title-prefix, and is forced to local visibility', () => {
+  const repo = tmpRepo();
+  storeInit(repo);
+  // title-prefix alone (no tag) still triggers the stricter gate
+  expect(() => storeAdd(repo, { title: 'improve: x', body: improveSpecBody('Confounders'), type: 'spec' })).toThrow(/Confounders/);
+  // even when the caller asks for shared, an improve spec is archived LOCAL (audit-derived privacy)
+  const card = storeAdd(repo, { title: 'improve: x', body: improveSpecBody(), type: 'spec', tags: ['coco-improve'], visibility: 'shared' });
+  expect(card.visibility).toBe('local');
+});
+
+test('section gate requires a real marker (heading or colon), not a bare line', () => {
+  const spec = (mk: (s: string) => string) => ['Outcome', 'Verification surface', 'Boundaries'].map(mk).join('\n');
+  expect(() => assertGoalSpecHasRequiredSections(spec((s) => `## ${s}\nx`))).not.toThrow(); // heading
+  expect(() => assertGoalSpecHasRequiredSections(spec((s) => `${s}:\nx`))).not.toThrow(); // colon label
+  expect(() => assertGoalSpecHasRequiredSections(spec((s) => `${s}\nx`))).toThrow(); // bare line → rejected
 });
