@@ -38,4 +38,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify
-        run: pnpm ci
+        # `pnpm run ci`, NOT `pnpm ci`: pnpm >=11 ships a built-in `ci` command (clean-install)
+        # that shadows the package script, so `pnpm ci` would silently skip typecheck/test/eval/build.
+        run: pnpm run ci

@@ -24,10 +24,13 @@ pnpm typecheck
 pnpm test
 pnpm eval
 pnpm build
-pnpm ci
+pnpm run ci
 ```
 
-`pnpm ci` is the expected pre-PR verification command. If a change touches a safety-critical gate, run the most specific affected tests as well as `pnpm ci`.
+`pnpm run ci` is the expected pre-PR verification command (typecheck + test + eval + build). Use
+`pnpm run ci`, not `pnpm ci`: pnpm >=11 ships a built-in `ci` command (clean-install) that shadows
+the package script, so `pnpm ci` silently reinstalls instead of verifying. If a change touches a
+safety-critical gate, run the most specific affected tests as well as `pnpm run ci`.
 
 Useful local product commands:
 

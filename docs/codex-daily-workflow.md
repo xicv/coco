@@ -154,10 +154,13 @@ only when there is enough valid audit history. The improve skill should propose 
 Before a branch is ready for review, run:
 
 ```sh
-pnpm ci
+pnpm run ci
 ```
 
-`pnpm ci` runs typecheck, tests, the deterministic `coco eval` safety fixtures, and build. For referee-critical changes, also run targeted tests for the exact invariant being changed or protected.
+`pnpm run ci` runs typecheck, tests, the deterministic `coco eval` safety fixtures, and build. Use
+`pnpm run ci`, not `pnpm ci` — pnpm >=11 ships a built-in `ci` (clean-install) command that shadows
+the package script and would silently reinstall instead of verifying. For referee-critical changes,
+also run targeted tests for the exact invariant being changed or protected.
 
 ## Privacy and platform notes
 

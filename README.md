@@ -106,7 +106,7 @@ That first creates one next task through the goal-planning path, then attempts o
 ### “Improve coco using its own history”
 
 ```text
-$coco audit validate
+coco audit validate
 coco audit feedback --goal <goalId> --kind goal-quality --rating 2 --tags vague-goal,weak-proof
 $coco-improve
 ```
@@ -256,7 +256,7 @@ pnpm typecheck
 pnpm test
 pnpm eval
 pnpm build
-pnpm ci
+pnpm run ci   # typecheck + test + eval + build (use `run` — pnpm's built-in `ci` reinstalls instead)
 ```
 
 GitHub Actions runs the CI gate on Ubuntu and macOS with Node 22/24.
