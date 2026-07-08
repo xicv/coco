@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { auditGoalWrite } from '../audit.js';
-import { checkout, createBranch, gatherLive, isClean, treeOfRef } from '../git.js';
+import { resolveBaseBranch } from '../cocoConfig.js';
+import { checkout, createBranch, gatherLive, isClean, treeOfRef, tryGit } from '../git.js';
 import { nextAction, type NextAction } from '../gate.js';
+import { GOAL_SCHEMA_VERSION } from '../goalSchema.js';
 import { isImproveOriginTask } from '../improve/originGate.js';
 import { withLock } from '../lock.js';
 import { findActiveGoal, goalPath, writeGoal } from '../state.js';
@@ -18,6 +20,7 @@ export interface StartOptions {
   maxFixRounds: number;
   acceptanceChecks: string[];
   backlogTaskId?: string;
+  base?: string; // optional per-goal override; defaults to workflow.baseBranch / repo default branch
   autoMergeAllowed?: boolean; // forward consent for Layer 2 auto-merge (from `$coco-loop --auto` / `coco goal start --auto-merge`)
   budget?: GoalBudget;
   now?: Date;
@@ -40,6 +43,21 @@ export function goalId(objective: string, now: Date): string {
   return `goal-${day}-${hm}-${slugify(objective)}`;
 }
 
+function branchExists(repo: string, branch: string): boolean {
+  return tryGit(repo, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).ok;
+}
+
+/** Keep the existing human-friendly minute slug for the first goal, but retry with a numeric suffix
+ * when a cancelled/finished goal with the same objective already left a branch or goal file behind. */
+function uniqueGoalId(repo: string, objective: string, now: Date): string {
+  const base = goalId(objective, now);
+  for (let i = 0; i < 100; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+    if (!existsSync(goalPath(repo, candidate)) && !branchExists(repo, `coco/${candidate}`)) return candidate;
+  }
+  throw new Error(`coco: could not allocate a unique goal id for '${base}'`);
+}
+
 export function goalStart(
   repo: string,
   opts: StartOptions,
@@ -56,18 +74,20 @@ export function goalStart(
     if (!isClean(repo)) throw new Error('coco: working tree must be clean to start a goal');
 
     const nowDate = opts.now ?? new Date();
-    const id = goalId(opts.objective, nowDate);
+    const id = uniqueGoalId(repo, opts.objective, nowDate);
     const branch = `coco/${id}`;
-    const baseTree = treeOfRef(repo, 'main'); // snapshot the base tree so a no-op implement can be rejected
-    createBranch(repo, branch, 'main'); // branch from the main ref regardless of current HEAD
+    const base = opts.base ?? resolveBaseBranch(repo);
+    const baseTree = treeOfRef(repo, base); // snapshot the base tree so a no-op implement can be rejected
+    createBranch(repo, branch, base); // branch from the resolved base ref regardless of current HEAD
     checkout(repo, branch);
 
     const now = nowDate.toISOString();
     const goal: GoalState = {
+      schemaVersion: GOAL_SCHEMA_VERSION,
       id,
       objective: opts.objective,
       branch,
-      base: 'main',
+      base,
       baseTree,
       state: 'active',
       maxFixRounds: opts.maxFixRounds,
