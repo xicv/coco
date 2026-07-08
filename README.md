@@ -22,6 +22,7 @@ coco builds itself. Every feature below was driven through `$coco-loop` on coco'
 
 ## What's new
 
+- **`coco-improve` — self-improving loop (propose-only)** — `$coco-improve` reflects over the `coco audit` corpus (with an **insufficient-data gate** so a thin history can't manufacture findings), forms ONE incremental, evidence-backed hypothesis, and archives it as a **local** improve-spec + one loop-sized backlog task for a human to run through `$coco-loop`. It never builds, merges, or edits live skills. A **code-owned guard** (`coco improve check`) refuses any change targeting the referee / metrics / store — enforced at BOTH propose time and, via an `improveOrigin` flag **frozen at goal start**, at **merge** time (even if a task under-declares what it touches). A self-improvement can never quietly weaken coco's own gate.
 - **`coco-audit` — automatic trajectory capture** — every meaningful loop/goal action (reviews, fixes, verify results, Oracle outages, merges) is recorded to a local, gitignored `.coco/audit.ndjson` at the domain chokepoint. Deterministic, **best-effort** (a logging failure never breaks the referee), and **redacted** (structural facts only — no evidence text). `coco audit report` aggregates it: fix-rounds (by distinct blocking tree, matching the epoch model), verify failures, Oracle outages, and verify→merge latency — the signal for evolving the loop.
 - **`coco doctor` — one-shot health check** — a read-only, **no-LLM** diagnostic that aggregates environment (node/git/version), repo setup (init, `verify.testCommand`), wiring (merge-guard hooks, coco + Oracle MCP, watchdog), active-goal health, and data hygiene. `coco doctor clean` reclaims stale verify-run cache — **dry-run by default**, `--apply` to delete, and only terminal/orphaned runs (never a live goal's runs, the goal ledger, or the audit log).
 - **Native `◈ coco` progress cards** — every layer surfaces a consistent, fenced **checkpoint card** so you can watch progress natively in the Codex app (assistant markdown is the only progress surface it renders — there's no live goal HUD there yet). `$coco-loop` echoes a loop checkpoint (*checkpoint · verified · remaining · next*, stamped with `goalId · sha · nextAction`) from `coco_goal_status`'s additive, versioned `progress` field — on each state transition, not every poll. `coco-store status` renders a **project-pulse** card (*backlog by status · spec completion · roadmap*); `$coco-goal` shows its self-reported pipeline phase. One shared visual language across all three; the human merge command stays **outside** the card as a clear, separate approval step.
@@ -57,6 +58,8 @@ coco-store status                      # native ◈ project-pulse card (backlog 
 coco-store viz                         # mermaid project graph
 coco audit report                      # loop trajectory: fix-rounds, verify fails, oracle outages, merge latency
 coco doctor                            # health + prereqs (`coco doctor clean` reclaims stale verify-run cache)
+coco improve digest                    # audit-derived pain signals (insufficient-data-gated)
+coco improve check <paths>             # refuse edits to the referee/metrics/store (exit 3)
 ```
 
 ## Credits
