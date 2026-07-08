@@ -42,7 +42,7 @@
     "eval": "tsx src/bin/coco.ts eval",
     "ci": "pnpm typecheck && pnpm test && pnpm eval && pnpm build",
     "dev": "tsx src/bin/coco.ts",
-    "prepublishOnly": "pnpm ci"
+    "prepublishOnly": "pnpm run ci"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
