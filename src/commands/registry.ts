@@ -2,7 +2,7 @@ export type CommandEffect = 'read' | 'write' | 'destructive' | 'external';
 
 export interface CommandDescriptor {
   name: string;
-  surfaces: ('cli' | 'mcp' | 'skill')[];
+  surfaces: ('cli' | 'mcp' | 'skill')[ ];
   effect: CommandEffect;
   summary: string;
   safety?: string;
@@ -10,6 +10,9 @@ export interface CommandDescriptor {
 
 const COMMANDS: readonly CommandDescriptor[] = [
   { name: 'coco init', surfaces: ['cli', 'mcp'], effect: 'write', summary: 'Bootstrap .coco and tracked coco.config.json on a clean repo.' },
+  { name: 'coco next', surfaces: ['cli', 'mcp', 'skill'], effect: 'read', summary: 'Return the next ready backlog task according to dependency/priority rules.' },
+  { name: '$coco-queue', surfaces: ['skill'], effect: 'read', summary: 'Inspect the project queue and explain the next ready task without implementing it.' },
+  { name: '$coco-night', surfaces: ['skill'], effect: 'external', summary: 'Pick exactly one ready task and run one bounded coco-loop attempt for overnight work.', safety: 'Stops at merge-gate unless the user explicitly invoked --auto for this one goal.' },
   { name: 'coco goal start', surfaces: ['cli', 'mcp', 'skill'], effect: 'write', summary: 'Create one active goal branch from the configured base branch.', safety: 'Refuses dirty trees and concurrent active goals.' },
   { name: 'coco goal status', surfaces: ['cli', 'mcp', 'skill'], effect: 'read', summary: 'Derive deterministic nextAction from goal state and live git.' },
   { name: 'coco goal record', surfaces: ['cli', 'mcp', 'skill'], effect: 'write', summary: 'Append plan/implement/review events bound to expectedSha.', safety: 'Review verdicts are parsed from Oracle output; verify is not accepted here.' },
