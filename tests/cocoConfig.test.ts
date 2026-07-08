@@ -4,6 +4,7 @@ import { expect, test } from 'vitest';
 import {
   DEFAULT_AUTO_MERGE_CONFIG,
   readAutoMergePolicyAtRef,
+  resolveBaseBranch,
   VERIFY_NOT_CONFIGURED_WARNING,
   verifyConfigWarnings,
 } from '../src/cocoConfig.js';
@@ -32,6 +33,12 @@ function commitConfig(repo: string, body: unknown): void {
   g(repo, ['commit', '-m', 'config']);
 }
 
+test('resolveBaseBranch honours workflow.baseBranch', () => {
+  const repo = tmpRepo();
+  commitConfig(repo, { workflow: { baseBranch: 'develop' } });
+  expect(resolveBaseBranch(repo)).toBe('develop');
+});
+
 test('readAutoMergePolicyAtRef returns defaults when config is missing', () => {
   const repo = tmpRepo(); // no coco.config.json
   expect(readAutoMergePolicyAtRef(repo, 'HEAD')).toEqual(DEFAULT_AUTO_MERGE_CONFIG);
@@ -44,6 +51,22 @@ test('readAutoMergePolicyAtRef merges a partial autoMerge block over defaults', 
   expect(p.maxChangedLines).toBe(42);
   expect(p.sensitiveGlobs).toEqual(DEFAULT_AUTO_MERGE_CONFIG.sensitiveGlobs); // untouched
   expect(p.testGlobs).toEqual(DEFAULT_AUTO_MERGE_CONFIG.testGlobs);
+});
+
+test('user autoMerge globs are additive by default', () => {
+  const repo = tmpRepo();
+  commitConfig(repo, { autoMerge: { sensitiveGlobs: ['infra/**'], testGlobs: ['checks/**'] } });
+  const p = readAutoMergePolicyAtRef(repo, 'HEAD');
+  expect(p.sensitiveGlobs).toEqual([...DEFAULT_AUTO_MERGE_CONFIG.sensitiveGlobs, 'infra/**']);
+  expect(p.testGlobs).toEqual([...DEFAULT_AUTO_MERGE_CONFIG.testGlobs, 'checks/**']);
+});
+
+test('autoMerge globs can explicitly replace defaults', () => {
+  const repo = tmpRepo();
+  commitConfig(repo, { autoMerge: { replaceDefaultSensitiveGlobs: true, sensitiveGlobs: ['infra/**'], replaceDefaultTestGlobs: true, testGlobs: ['checks/**'] } });
+  const p = readAutoMergePolicyAtRef(repo, 'HEAD');
+  expect(p.sensitiveGlobs).toEqual(['infra/**']);
+  expect(p.testGlobs).toEqual(['checks/**']);
 });
 
 test('readAutoMergePolicyAtRef falls back to defaults on malformed JSON or bad types', () => {
