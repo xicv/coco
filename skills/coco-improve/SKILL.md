@@ -1,6 +1,6 @@
 ---
 name: coco-improve
-description: Use when the user types $coco-improve or /coco-improve, or asks to analyse coco's own loop history and propose an improvement to the coco skills/CLI. The self-improvement layer — reflect over the audit corpus, form ONE incremental, evidence-backed hypothesis, archive it as a LOCAL improve-spec card, promote ONE non-protected loop-sized task, then STOP. Propose-only: never builds, never merges, never starts coco-loop, never edits live skills, never touches the referee.
+description: Use when the user types $coco-improve or /coco-improve, or asks to analyse coco's own loop history and propose an improvement to the coco skills/CLI. The self-improvement layer — reflect over the audit corpus (plus bounded, cited web research on the signal's topic), form ONE incremental, evidence-backed hypothesis, archive it as a LOCAL improve-spec card, promote ONE non-protected loop-sized task, then STOP. Propose-only: never builds, never merges, never starts coco-loop, never edits live skills, never touches the referee.
 ---
 
 # coco-improve
@@ -23,9 +23,12 @@ Invoke: `$coco-improve` (Codex) / `/coco-improve` (Claude Code).
 
 1. **Digest.** Run `coco improve digest`. Read `sufficient`, `signals`, `antiGoals`. `sufficient:false` → STOP (rule 2).
 2. **Pick a target signal.** The first signal with `status:"signal"` and `safeToActOn:true`. None → STOP (rule 3), reporting the diagnostics.
-3. **Reflect.** Read the relevant skill/CLI (reuse **Explore** / grep — never build an index) to locate the *smallest* incremental change that addresses the signal's cause. Form ONE hypothesis: *"changing X in `<file>` will reduce `<signal>` because `<mechanism>`."* Note 1–2 rejected alternatives and why.
+3. **Reflect + bounded research.**
+   a. **Read the repo** (reuse **Explore** / grep — never build an index) to locate the *smallest* incremental change that addresses the signal's cause.
+   b. **Research the topic — privacy-critical.** A fired safe signal carries a code-defined `researchTopic`. Search **exactly that string** (≤2 searches, ≤3 sources; WebSearch / deep-research / context7 / ferris-search). **NEVER** put coco's state into a query — no repo name, file paths, ids, counts, timestamps, or audit `detail` — and **never send the digest, a spec, audit records, or local filenames to Oracle or any external model during research** (the query is the generic `researchTopic`, nothing more). No `researchTopic` on the signal → skip research.
+   c. **Form ONE hypothesis, with typed evidence.** An external claim needs a **cited resolvable URL**; a local claim needs **repo/audit evidence**; your own reasoning may appear only as a **labeled hypothesis** tied to one of those. A cited best-practice is **evidence to test, never a mandate** — state *why* it applies to coco's specific mechanism, not merely that it's recommended (guard against authority bias). Note 1–2 rejected alternatives and why.
 4. **Guard.** Run `coco improve check <the files X touches>`. `ok:false` → STOP (rule 4). A proposal may only touch **non-protected** files (skills/docs/non-referee code).
-5. **Author the improve-spec.** Write a spec body with **all** of these sections (coco-store REJECTS an improve spec missing any): `Outcome`, `Verification surface`, `Boundaries`, `Predeclared hypothesis`, `Audit evidence window`, `Expected mechanism`, `Success criteria`, `Failure criteria`, `Confounders`, `Rejected alternatives`, `Anti-goals`. Ground `Audit evidence window` in the digest numbers (`window.goals`, the signal's `sample` + `detail`) — never in a subjective read.
+5. **Author the improve-spec.** Write a spec body with **all** of these sections (coco-store REJECTS an improve spec missing any): `Outcome`, `Verification surface`, `Boundaries`, `Predeclared hypothesis`, `Audit evidence window`, `Expected mechanism`, `Success criteria`, `Failure criteria`, `Confounders`, `Rejected alternatives`, `Anti-goals`, `Research provenance`. Ground `Audit evidence window` in the digest numbers (`window.goals`, the signal's `sample` + `detail`) — never in a subjective read. `Research provenance` lists each cited external source (resolvable URL) with a one-line note on *why it applies to coco's mechanism* — or exactly `none - audit-only` if no external evidence was used.
 6. **Archive (local).**
    ```sh
    coco-store add --type spec --title "improve: <short>" --tags coco-improve --visibility local <path-to-improve-spec.md>
@@ -42,7 +45,7 @@ Invoke: `$coco-improve` (Codex) / `/coco-improve` (Claude Code).
 
 ## Notes
 
-- **No web research yet** (deferred to a later slice). Reflection is over the audit digest + the repo's own skills/CLI only.
+- **Research is bounded, cited, and private.** External research is the signal's `researchTopic` only — capped (≤2 searches / ≤3 sources), and **nothing about coco leaves the machine in a query** (no state in the query, no digest/spec/audit sent to Oracle or any external model). Findings are evidence to **test** under the same human + coco-loop gate; a cited "best practice" is never a mandate and must be justified against coco's local mechanism (`Research provenance`).
 - **One proposal per run.** A single well-evidenced, incremental change a human can judge — not a batch.
 - **The referee is sacred.** `coco improve check` is the code-owned boundary; rule 4 is not negotiable. If you find yourself wanting to touch `src/gate.ts`, verdict parsing, verify, merge/risk, the metrics, the MCP/CLI surface, the spec evaluator, or coco-improve's own files — STOP and tell the human it needs a referee-change goal outside coco-improve. Even if a promoted task under-declares its `--paths`, an improve-origin goal whose **actual diff** touches a protected path is **refused at merge** (code-enforced) — a referee change simply cannot ride in through coco-improve.
 - **Low-N honesty.** The digest's sample gate and `safeToActOn` flag exist because loop outcomes are high-variance; treat a proposal as *evidence to test*, not proof. The spec's Success/Failure criteria are how a later human judges it — do not pre-declare victory.

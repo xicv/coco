@@ -33,6 +33,7 @@ const REQUIRED_IMPROVE_SPEC_SECTIONS = [
   'Confounders',
   'Rejected alternatives',
   'Anti-goals',
+  'Research provenance', // cited external sources (resolvable URLs) — or "none - audit-only" if no external evidence applied
 ] as const;
 
 /** Presence-only gate for a coco-improve spec (`type=spec` + tag `coco-improve`): it must satisfy the

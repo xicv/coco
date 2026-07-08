@@ -120,6 +120,35 @@ test('improveDigest: oracle-reliability is safeToActOn only when it actually fir
   expect(improveDigest(hot).signals.find((s) => s.key === 'human-merge-latency')!.safeToActOn).toBe(false);
 });
 
+test('improveDigest attaches a STATIC researchTopic only to a fired safeToActOn signal (no coco/audit state)', () => {
+  const outage = (gid: string, at: string): AuditRecord => ({ v: 1, at, goalId: gid, action: 'oracle-unavailable:review:oracle-timeout', state: 'active', events: 0 });
+
+  const hot = mkdtempSync(join(tmpdir(), 'coco-improve-'));
+  seedGoals(hot, 5, [outage('g0', '2026-07-08T01:00:00.000Z'), outage('g1', '2026-07-08T01:01:00.000Z'), outage('g2', '2026-07-08T01:02:00.000Z')]);
+  const oracleHot = improveDigest(hot).signals.find((s) => s.key === 'oracle-reliability')!;
+  expect(oracleHot.researchTopic).toBe('reliable retry, backoff, and resume patterns for flaky LLM or tool calls in agent skill instructions');
+  expect(oracleHot.researchTopic!).not.toMatch(/\d|goal-|\.coco|src\//); // no dynamic state leaked into the query
+
+  // a 'clear' oracle signal (enough data, no outages) carries NO topic — research only where actionable
+  const cool = mkdtempSync(join(tmpdir(), 'coco-improve-'));
+  seedGoals(cool, 5);
+  expect(improveDigest(cool).signals.find((s) => s.key === 'oracle-reliability')!.researchTopic).toBeUndefined();
+  // observational signals never carry a topic (even when they have data)
+  expect(improveDigest(hot).signals.find((s) => s.key === 'human-merge-latency')!.researchTopic).toBeUndefined();
+});
+
+test('a FIRED but non-safe signal (recurring-churn) carries NO researchTopic — only fired SAFE signals do', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'coco-improve-'));
+  const blocking = (gid: string, n: number, tree: string): AuditRecord => ({ v: 1, at: `2026-07-08T02:00:0${n}.000Z`, goalId: gid, action: 'record:review:blocking', state: 'active', events: 0, tree });
+  seedGoals(repo, 5); // sufficient
+  // two goals with 3 distinct blocking trees each → fixRounds >= 3 → recurring-churn fires
+  for (const gid of ['g0', 'g1']) ['a', 'b', 'c'].forEach((t, i) => appendAudit(repo, blocking(gid, i, `${gid}-${t}`)));
+  const churn = improveDigest(repo).signals.find((s) => s.key === 'recurring-churn')!;
+  expect(churn.status).toBe('signal'); // it fired
+  expect(churn.safeToActOn).toBe(false); // but it is diagnostic-only
+  expect(churn.researchTopic).toBeUndefined(); // → no research topic
+});
+
 test('slice-2 denylist: the whole store layer + improve skill are protected; the loop skill stays a legit target', () => {
   for (const p of [
     'src/store/specValidate.ts', 'src/store/commands.ts', 'src/store/cli.ts', 'src/store/schema.ts', 'src/store/pack.ts',
@@ -133,13 +162,20 @@ test('slice-2 denylist: the whole store layer + improve skill are protected; the
 const IMPROVE_SECTIONS = [
   'Outcome', 'Verification surface', 'Boundaries', 'Predeclared hypothesis', 'Audit evidence window',
   'Expected mechanism', 'Success criteria', 'Failure criteria', 'Confounders', 'Rejected alternatives', 'Anti-goals',
+  'Research provenance',
 ];
 const improveSpecBody = (omit?: string): string => IMPROVE_SECTIONS.filter((s) => s !== omit).map((s) => `## ${s}\nx\n`).join('\n');
 
 test('improve-spec gate requires the full hypothesis contract (base GoalSpec sections included)', () => {
   expect(() => assertImproveSpecHasRequiredSections(improveSpecBody())).not.toThrow();
   expect(() => assertImproveSpecHasRequiredSections(improveSpecBody('Predeclared hypothesis'))).toThrow(/Predeclared hypothesis/);
+  expect(() => assertImproveSpecHasRequiredSections(improveSpecBody('Research provenance'))).toThrow(/Research provenance/); // provenance is required
   expect(() => assertImproveSpecHasRequiredSections(improveSpecBody('Boundaries'))).toThrow(/Boundaries/); // base gate still applies
+});
+
+test('Research provenance accepts the documented `none - audit-only` sentinel under a colon marker', () => {
+  const body = `${IMPROVE_SECTIONS.filter((s) => s !== 'Research provenance').map((s) => `## ${s}\nx\n`).join('\n')}\nResearch provenance:\nnone - audit-only\n`;
+  expect(() => assertImproveSpecHasRequiredSections(body)).not.toThrow();
 });
 
 test('storeAdd routes a coco-improve-tagged spec through the stricter gate; plain specs are unaffected', () => {

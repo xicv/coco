@@ -23,7 +23,15 @@ export interface ImproveSignal {
   detail: string;
   sample: number; // how many goals/records informed this signal
   safeToActOn: boolean; // false = diagnostic/observational only; NOT a valid optimisation target
+  researchTopic?: string; // a fired safeToActOn signal only: the GENERIC, code-controlled query to research (never any coco/audit specifics — so nothing private can leak into an external search)
 }
+
+// Static, GENERIC research queries — code-controlled so no repo/audit data can ever enter an external
+// search. Attached ONLY to a fired safeToActOn signal (see `signal()`). Keep these free of any dynamic
+// coco state (names, paths, ids, counts, timestamps).
+const RESEARCH_TOPICS: Record<string, string> = {
+  'oracle-reliability': 'reliable retry, backoff, and resume patterns for flaky LLM or tool calls in agent skill instructions',
+};
 
 export interface ImproveDigest {
   window: { goals: number; records: number };
@@ -37,7 +45,11 @@ function signal(key: string, sufficient: boolean, fired: boolean, detail: string
   const status: ImproveSignal['status'] = !sufficient ? 'insufficient-data' : fired ? 'signal' : 'clear';
   // safeToActOn is a LIVE flag: true only for a fired signal that is inherently safe — never while
   // 'clear' or 'insufficient-data' (so a consumer can't act on a non-signal).
-  return { key, status, detail, sample, safeToActOn: status === 'signal' && inherentlySafe };
+  const safeToActOn = status === 'signal' && inherentlySafe;
+  // A research topic rides ONLY on a fired safeToActOn signal — so research happens only where an
+  // actionable improvement exists, and only against the static code-controlled query.
+  const topic = safeToActOn ? RESEARCH_TOPICS[key] : undefined;
+  return { key, status, detail, sample, safeToActOn, ...(topic ? { researchTopic: topic } : {}) };
 }
 
 /** Deterministic pain digest over the audit corpus. Read-only. */
