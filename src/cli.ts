@@ -35,8 +35,8 @@ import { goalHealth } from './commands/health.js';
 import { guardHook, runGuard } from './commands/guard.js';
 import { defaultPaths, installHooks, uninstallHooks } from './commands/installHooks.js';
 import { cocoDone, cocoNext } from './commands/backlog.js';
-import { auditReport } from './commands/audit.js';
-import { readAudit } from './audit.js';
+import { auditReport, auditValidate } from './commands/audit.js';
+import { appendAuditFeedback, AUDIT_FEEDBACK_KINDS, readAudit, type AuditFeedbackKind } from './audit.js';
 import { cleanDoctor, runDoctor } from './commands/doctor.js';
 import { runEval } from './commands/eval.js';
 import { listCommandDescriptors } from './commands/registry.js';
@@ -398,6 +398,23 @@ export function main(argv: string[] = process.argv.slice(2)): number {
         const { values } = parseArgs({ args: rest, options: { goal: { type: 'string' } } });
         const recs = readAudit(repo);
         out(values.goal ? recs.filter((r) => r.goalId === values.goal) : recs);
+        return 0;
+      }
+      if (sub === 'validate') {
+        const res = auditValidate(repo);
+        out(res);
+        return res.ok ? 0 : 1;
+      }
+      if (sub === 'feedback') {
+        const { values } = parseArgs({
+          args: rest,
+          options: { goal: { type: 'string' }, kind: { type: 'string' }, rating: { type: 'string' }, tags: { type: 'string' }, note: { type: 'string' } },
+        });
+        if (!values.goal || !values.kind || !values.rating) {
+          throw new Error(`usage: coco audit feedback --goal <id> --kind <${AUDIT_FEEDBACK_KINDS.join('|')}> --rating <1..5> [--tags a,b] [--note "local note"]`);
+        }
+        const tags = values.tags ? values.tags.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+        out(appendAuditFeedback(repo, { goalId: values.goal, kind: values.kind as AuditFeedbackKind, rating: Number(values.rating), tags, note: values.note }));
         return 0;
       }
       if (sub === undefined || sub === 'report') {
