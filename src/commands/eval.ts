@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { appendAudit, auditPath } from '../audit.js';
 import { deriveFacts } from '../epoch.js';
-import { FINGERPRINT_N } from '../fingerprint.js';
+import { FINGERPRINT_N, updateFailureLoop } from '../fingerprint.js';
 import { nextAction } from '../gate.js';
+import { parseGoalState } from '../goalSchema.js';
 import { parseOracleVerdict } from '../oracleVerdict.js';
 import type { GoalEvent, GoalState } from '../types.js';
 import { auditValidate } from './audit.js';
@@ -90,7 +91,9 @@ const cases: EvalCase[] = [
     run: () =>
       nextAction(
         activeGoal({
-          events: [ev('implement', 't1'), ev('review', 't1', 'blocking')],
+          // plan → implement is required for nextAction to reach the review/fingerprint branch;
+          // without a plan event it would short-circuit to 'plan' and never test escalation.
+          events: [ev('plan', 't1'), ev('implement', 't1'), ev('review', 't1', 'blocking')],
           failureLoop: { key: 'same-failure', count: FINGERPRINT_N, history: [] },
         }),
         { tHead: 't1', treeClean: true, onBranch: true, baseMerged: true },
@@ -113,6 +116,18 @@ const cases: EvalCase[] = [
     area: 'audit',
     invariant: 'Invalid/torn audit lines and impossible merge ordering are detected before self-improvement trusts them.',
     run: auditInvalidFixture,
+  },
+  {
+    id: 'reset-failure-loop-survives-reload',
+    area: 'gate',
+    invariant: 'A goal whose failure-loop reset to the empty-key sentinel must survive persist→reload; the schema must not false-block valid runtime state.',
+    run: () => {
+      // updateFailureLoop returns key:'' after a non-failure event (the "no active failure" sentinel).
+      const reset = updateFailureLoop(undefined, ev('implement', 't1'));
+      if (reset.key !== '' || reset.count !== 0) return false;
+      const roundTripped = parseGoalState(JSON.parse(JSON.stringify(activeGoal({ failureLoop: reset }))));
+      return roundTripped.failureLoop?.key === '' && roundTripped.failureLoop.count === 0;
+    },
   },
 ];
 
