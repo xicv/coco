@@ -2,7 +2,7 @@ export type CommandEffect = 'read' | 'write' | 'destructive' | 'external';
 
 export interface CommandDescriptor {
   name: string;
-  surfaces: ('cli' | 'mcp' | 'skill')[ ];
+  surfaces: ('cli' | 'mcp' | 'skill')[];
   effect: CommandEffect;
   summary: string;
   safety?: string;
