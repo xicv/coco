@@ -24,6 +24,9 @@ As of **v0.4**, coco also **improves itself**: `coco-audit` records every meanin
 
 ## What's new
 
+- **Daily Codex hardening** — root `AGENTS.md` now captures durable repo/agent guidance, `.codex/config.toml.example` shows the local MCP wiring, and `docs/codex-daily-workflow.md` gives the Mac Codex.app daily path.
+- **`coco-mcp` package bin** — the npm package now exposes `coco-mcp` alongside `coco` and `coco-store`, matching the documented MCP setup path.
+- **CI-ready verification** — `pnpm typecheck`, `pnpm ci`, and a GitHub Actions matrix run typecheck + tests + build on Linux and macOS.
 - **`coco-improve` — self-improving loop (propose-only)** — `$coco-improve` reflects over the `coco audit` corpus (with an **insufficient-data gate** so a thin history can't manufacture findings), forms ONE incremental, evidence-backed hypothesis, and archives it as a **local** improve-spec + one loop-sized backlog task for a human to run through `$coco-loop`. It never builds, merges, or edits live skills. It can ground a proposal in **bounded, cited web research** — a *code-controlled* query, so nothing about coco leaks into a search — treating any external best-practice as *evidence to test, never proof*. A **code-owned guard** (`coco improve check`) refuses any change targeting the referee / metrics / store — enforced at BOTH propose time and, via an `improveOrigin` flag **frozen at goal start**, at **merge** time (even if a task under-declares what it touches). A self-improvement can never quietly weaken coco's own gate.
 - **`coco-audit` — automatic trajectory capture** — every meaningful loop/goal action (reviews, fixes, verify results, Oracle outages, merges) is recorded to a local, gitignored `.coco/audit.ndjson` at the domain chokepoint. Deterministic, **best-effort** (a logging failure never breaks the referee), and **redacted** (structural facts only — no evidence text). `coco audit report` aggregates it: fix-rounds (by distinct blocking tree, matching the epoch model), verify failures, Oracle outages, and verify→merge latency — the signal for evolving the loop.
 - **`coco doctor` — one-shot health check** — a read-only, **no-LLM** diagnostic that aggregates environment (node/git/version), repo setup (init, `verify.testCommand`), wiring (merge-guard hooks, coco + Oracle MCP, watchdog), active-goal health, and data hygiene. `coco doctor clean` reclaims stale verify-run cache — **dry-run by default**, `--apply` to delete, and only terminal/orphaned runs (never a live goal's runs, the goal ledger, or the audit log).
@@ -35,7 +38,7 @@ As of **v0.4**, coco also **improves itself**: `coco-audit` records every meanin
 
 ## Prerequisites
 
-- **Node.js ≥ 18.**
+- **Node.js ≥ 20.**
 - **An MCP-aware coding agent** — [OpenAI Codex](https://developers.openai.com/codex) or [Claude Code](https://claude.ai/code) — with the `coco` (and `oracle`) MCP servers registered and the `coco-goal` / `coco-store` / `coco-loop` skills installed under the agent's skills dir.
 - **A ChatGPT Pro subscription + Oracle — required for the review brain.** coco's plan/review gate runs **GPT‑5.x‑Pro** through the [`@steipete/oracle`](https://github.com/steipete/oracle) lane, which drives a logged-in **ChatGPT Pro** browser session (the `consult` MCP tool). Without an active **ChatGPT Pro** subscription and Oracle configured, the CLIs still run, but the Oracle-gated plan/review steps can't — by design coco then **fails to the human, never a false green**.
 
@@ -47,7 +50,30 @@ As of **v0.4**, coco also **improves itself**: `coco-audit` records every meanin
 npm install -g @nickcao/coco
 ```
 
-Provides `coco` (the referee), `coco-store` (the PM layer), and the `coco-mcp` stdio server for MCP-aware agents.
+Provides `coco` (the referee), `coco-store` (the PM layer), and `coco-mcp` (the MCP stdio server for MCP-aware agents).
+
+## Daily Codex.app setup
+
+For Codex.app, start from the durable guidance and examples in this repo:
+
+```sh
+cat AGENTS.md
+cat .codex/config.toml.example
+cat docs/codex-daily-workflow.md
+```
+
+Then copy the relevant MCP blocks into `~/.codex/config.toml`, install/sync the skills into your agent skills directory, and run:
+
+```sh
+coco doctor
+```
+
+The daily path is:
+
+1. `$coco-goal <intent>` for vague or multi-step work.
+2. `$coco-loop` for one ready backlog task, or `$coco-loop <objective>` for a specific task.
+3. `coco-store status` / `coco-store progress` for PM state.
+4. `$coco-improve` only to propose one evidence-backed improvement; it never edits or merges the proposal itself.
 
 ## Quick taste (CLI, no agent)
 
@@ -63,6 +89,18 @@ coco doctor                            # health + prereqs (`coco doctor clean` r
 coco improve digest                    # audit-derived pain signals (insufficient-data-gated)
 coco improve check <paths>             # refuse edits to the referee/metrics/store (exit 3)
 ```
+
+## Development verification
+
+```sh
+pnpm install
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm ci
+```
+
+`pnpm ci` is the pre-PR gate: typecheck, test, then build. GitHub Actions runs the same gate on Linux and macOS.
 
 ## Credits
 
