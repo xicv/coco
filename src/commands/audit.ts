@@ -1,4 +1,4 @@
-import { readAuditDetailed, type AuditFeedbackKind, type AuditRecord } from '../audit.js';
+import { readAuditDetailed, type AuditRecord } from '../audit.js';
 
 // Deterministic analysis over the captured audit stream (no LLM). Surfaces the signals coco-improve
 // reflects on: where the loop churns (fix rounds), where it fails (verify), where Oracle falls over
@@ -113,7 +113,7 @@ function feedbackSummary(recs: AuditRecord[]): FeedbackSummary {
     negative: feedback.filter((r) => (r.rating ?? 5) <= 2).length,
     ...(a !== undefined ? { avgRating: a } : {}),
     byKind,
-    topTags: [...tags.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0])).slice(0, 10),
+    topTags: [...tags.entries()].sort((x, y) => y[1] - x[1]).slice(0, 10),
   };
 }
 
