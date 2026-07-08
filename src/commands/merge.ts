@@ -1,11 +1,22 @@
 import { assessAutoMergeRisk, type RiskReport } from '../autoMergeRisk.js';
+import { VERIFY_TEST_COMMAND_CHANGE_ACK, verifyTestCommandChange } from '../cocoConfig.js';
 import { checkout, ffMerge, gatherLive, headSha } from '../git.js';
 import { mergeDecision } from '../gate.js';
 import { improveOriginProtectedHits } from '../improve/originGate.js';
 import { withLock } from '../lock.js';
 import { findActiveGoal, touchAndWrite } from '../state.js';
 
-export function mergeGoal(repo: string, id: string): { merged: boolean; reason?: string } {
+export interface MergeOptions {
+  ackVerifyPolicyChange?: boolean;
+}
+
+function verifyPolicyMergeBlock(repo: string, base: string, ack?: boolean): string | undefined {
+  const change = verifyTestCommandChange(repo, base);
+  if (change === 'none' || ack) return undefined;
+  return `${VERIFY_TEST_COMMAND_CHANGE_ACK} (change: ${change})`;
+}
+
+export function mergeGoal(repo: string, id: string, opts: MergeOptions = {}): { merged: boolean; reason?: string } {
   return withLock(repo, () => {
     const goal = findActiveGoal(repo);
     if (!goal || goal.id !== id) throw new Error(`coco: no active goal '${id}'`);
@@ -21,7 +32,12 @@ export function mergeGoal(repo: string, id: string): { merged: boolean; reason?:
       return { merged: false, reason: `improve-origin change touches protected path(s): ${blocked.join(', ')} — a referee/metric change needs a human-authored goal, not a coco-improve one` };
     }
 
-    // FF-only merge. ffMerge checks out `base` first; if the FF fails (main moved
+    // Verification policy changes are allowed only with an explicit human acknowledgement. This keeps
+    // the default human merge path from overlooking a goal that changed the very command coco trusted.
+    const policyBlock = verifyPolicyMergeBlock(repo, goal.base, opts.ackVerifyPolicyChange);
+    if (policyBlock) return { merged: false, reason: policyBlock };
+
+    // FF-only merge. ffMerge checks out `base` first; if the FF fails (base moved
     // between validation and here), restore the goal branch so a retry is sane.
     const res = ffMerge(repo, goal.base, goal.branch);
     if (!res.ok) {
@@ -30,7 +46,7 @@ export function mergeGoal(repo: string, id: string): { merged: boolean; reason?:
     }
 
     goal.state = 'achieved';
-    touchAndWrite(repo, goal, 'merge');
+    touchAndWrite(repo, goal, opts.ackVerifyPolicyChange ? 'merge:verify-policy-ack' : 'merge');
     return { merged: true };
   });
 }
@@ -81,6 +97,11 @@ export function autoMergeGoal(repo: string, id: string, opts: { expectedSha: str
     // protected path can't merge here either; it needs a human-authored (non-improve) referee goal.
     const blocked = improveOriginProtectedHits(repo, goal);
     if (blocked.length) return toHuman(`improve-origin change touches protected path(s): ${blocked.join(', ')} — needs a human-authored referee-change goal, not a coco-improve one`);
+
+    // 3c. Auto-merge never acknowledges verify policy changes. Those must fall back to an explicit
+    // human merge command carrying --ack-verify-policy-change.
+    const policyBlock = verifyPolicyMergeBlock(repo, goal.base, false);
+    if (policyBlock) return toHuman(policyBlock);
 
     // 4. Layer 2 risk-tier — policy read at base (tamper-resistant). A block means "let a human do it".
     const risk = assessAutoMergeRisk(repo, goal.base, goal.branch);
