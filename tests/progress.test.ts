@@ -24,11 +24,16 @@ function report(over: Partial<StatusReport> = {}): StatusReport {
   return {
     goalId: 'goal-20260707-0949-add-retry',
     state: 'active',
+    base: 'main',
+    branch: 'coco/goal-20260707-0949-add-retry',
+    currentBranch: 'coco/goal-20260707-0949-add-retry',
     nextAction: 'plan',
     headSha: 'a1b2c3d4e5f6',
     maxFixRounds: 5,
     live: { tHead: 't0', treeClean: true, onBranch: true, baseMerged: true },
     facts: { implementAtEpoch: false, latestReview: 'none', latestVerify: 'none', fixRounds: 0 },
+    warningLevel: 'none',
+    progressKey: 'k',
     ...over,
   };
 }
@@ -62,7 +67,7 @@ test('loopView renders every nextAction without throwing and stamps provenance',
   for (const na of ALL_ACTIONS) {
     const v = loopView(report({ nextAction: na }));
     expect(v.skill).toBe('coco-loop');
-    expect(v.rows).toHaveLength(4);
+    expect(v.rows.length).toBeGreaterThanOrEqual(7);
     expect(v.provenance).toContain(`next=${na}`);
     // the whole thing renders to a fenced block cleanly
     expect(renderView(v)).toContain('◈ coco-loop');
@@ -82,14 +87,35 @@ test('loopView fix card shows the round and the blocking review, glyph + words',
   expect(byLabel.Next).toContain('fix');
 });
 
-test('loopView verify-pass at merge-gate reads clean + pass', () => {
+test('loopView verify-pass at merge-gate reads clean + pass and keeps command in recovery only', () => {
   const v = loopView(
-    report({ nextAction: 'merge-gate', facts: { implementAtEpoch: true, latestReview: 'clean', latestVerify: 'pass', fixRounds: 0 } }),
+    report({
+      nextAction: 'merge-gate',
+      facts: { implementAtEpoch: true, latestReview: 'clean', latestVerify: 'pass', fixRounds: 0 },
+      edge: { kind: 'merge-ready', detail: 'ready', command: 'coco merge --goal goal-20260707-0949-add-retry' },
+    }),
   );
   const byLabel = Object.fromEntries(v.rows.map((r) => [r.label, r.value]));
   expect(byLabel.Verified).toContain('review ✓ clean');
   expect(byLabel.Verified).toContain('verify ✓ pass');
-  expect(byLabel.Next).toContain('awaiting human approval'); // merge command stays OUT of the card
+  expect(byLabel.Next).toContain('awaiting human approval');
+  expect(byLabel.Recovery).toContain('coco merge');
+});
+
+test('loopView edge card shows wrong branch recovery command', () => {
+  const v = loopView(
+    report({
+      nextAction: 'wrong-branch',
+      currentBranch: 'main',
+      edge: { kind: 'wrong-branch', detail: 'currently on main', command: 'git checkout coco/goal-20260707-0949-add-retry' },
+      warningLevel: 'warn',
+    }),
+  );
+  const byLabel = Object.fromEntries(v.rows.map((r) => [r.label, r.value]));
+  expect(byLabel.Checkpoint).toContain('wrong branch');
+  expect(byLabel.Branch).toContain('main → main');
+  expect(byLabel.Recovery).toBe('git checkout coco/goal-20260707-0949-add-retry');
+  expect(v.provenance).toContain('level=warn');
 });
 
 test('storeView aggregates backlog counts, spec completion, and the latest roadmap line', () => {
