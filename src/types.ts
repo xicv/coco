@@ -23,10 +23,11 @@ export interface InFlight {
 }
 
 export interface GoalState {
+  schemaVersion?: number; // persisted goal-ledger schema. Missing on old goals; readGoal migrates to the current version.
   id: string;
   objective: string;
   branch: string;
-  base: string; // e.g. "main"
+  base: string; // e.g. "main" or a configured base branch
   baseTree?: string; // git tree hash of the base at goal start — an implement must differ from it (no no-op work)
   state: GoalLifecycle;
   maxFixRounds: number;
