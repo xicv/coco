@@ -10,7 +10,7 @@ This repository builds `coco`, a small loop-engineering referee for AI coding ag
 - `src/store/**` is the PM/knowledge layer. It must not import or mutate goal/referee state.
 - `src/improve/**` implements propose-only self-improvement guards and audit-derived signals.
 - `src/commands/eval.ts` contains deterministic safety-regression fixtures. Add a fixture when fixing a state-machine or false-green class.
-- `skills/**` contains the user-facing Codex/Claude skills.
+- `skills/**` contains the user-facing Codex/Claude skills, including queue/night orchestration. Skill text is part of the safety surface.
 - `.coco/**` is local runtime state and must not be committed.
 - `.coco-store/**` is the local PM store. Treat audit-derived/self-improvement content as local unless code explicitly marks it shared.
 
@@ -33,6 +33,7 @@ Useful local product commands:
 
 ```sh
 coco commands
+coco next                 # next ready backlog task
 coco setup codex          # dry-run Codex MCP + skill setup
 coco setup codex --apply  # apply local setup
 coco eval                 # deterministic safety fixtures
@@ -52,6 +53,7 @@ Do not weaken these without an explicit, human-authored referee-change goal and 
 8. Auto-merge is opt-in per goal and must never loosen the human merge path.
 9. Improve-origin changes must not touch protected referee, metrics, store, or improve-self paths.
 10. Store/pack must preserve the privacy boundary: local cards and secret-looking files must not be sent to Oracle.
+11. `$coco-night` may run at most one task and must stop at merge-gate unless the user explicitly supplied `--auto` for that one run.
 
 ## Coding style
 
@@ -75,6 +77,8 @@ For normal development in Codex.app:
 1. Run `coco setup codex` once as a dry-run, then `coco setup codex --apply` if the paths are correct.
 2. Run `coco doctor` before a long session.
 3. Use `$coco-goal` for vague or multi-step work.
-4. Use `$coco-loop` for one loop-sized implementation task.
-5. Use `$coco-store status` or `coco-store progress` for project state.
-6. Use `$coco-improve` only to propose one evidence-backed improvement; it must not build, edit, or merge the proposal itself.
+4. Use `$coco-queue` or `coco next` to inspect the next ready task without implementing.
+5. Use `$coco-loop` for one loop-sized implementation task.
+6. Use `$coco-night` for one bounded overnight attempt; schedule it as an automation only after it works manually.
+7. Use `$coco-store status` or `coco-store progress` for project state.
+8. Use `$coco-improve` only to propose one evidence-backed improvement; it must not build, edit, or merge the proposal itself.
