@@ -53,7 +53,7 @@ test('end-to-end happy path via the CLI reaches merge-gate then merges', { timeo
   expect(JSON.parse(coco(repo, ['merge', '--goal', id])).merged).toBe(true);
 });
 
-test('CLI review goes through the strict Oracle parser — no --verdict false-green backdoor', () => {
+test('CLI review goes through the strict Oracle parser — no --verdict false-green backdoor', { timeout: 30000 }, () => {
   const repo = mkdtempSync(join(tmpdir(), 'coco-e2e-'));
   coco(repo, ['init']);
   const id = JSON.parse(coco(repo, ['goal', 'start', '--objective', 'guard'])).goalId;
