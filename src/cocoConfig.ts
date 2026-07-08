@@ -8,20 +8,32 @@ export interface VerifyConfig {
   outputLimitBytes?: number;
 }
 
-/** Parse a `coco.config.json` body into a VerifyConfig, or null if missing/malformed. */
-function parseVerifyConfig(raw: string): VerifyConfig | null {
+export interface WorkflowConfig {
+  baseBranch?: string;
+}
+
+function parseJson(raw: string): unknown | null {
   try {
-    const cfg = JSON.parse(raw) as { verify?: Partial<VerifyConfig> };
-    const v = cfg?.verify;
-    if (!v || typeof v.testCommand !== 'string' || !v.testCommand.trim()) return null;
-    return {
-      testCommand: v.testCommand,
-      timeoutSec: typeof v.timeoutSec === 'number' && v.timeoutSec > 0 ? v.timeoutSec : undefined,
-      outputLimitBytes: typeof v.outputLimitBytes === 'number' && v.outputLimitBytes > 0 ? v.outputLimitBytes : undefined,
-    };
+    return JSON.parse(raw) as unknown;
   } catch {
     return null;
   }
+}
+
+function asObject(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** Parse a `coco.config.json` body into a VerifyConfig, or null if missing/malformed. */
+function parseVerifyConfig(raw: string): VerifyConfig | null {
+  const cfg = asObject(parseJson(raw));
+  const v = asObject(cfg?.verify);
+  if (!v || typeof v.testCommand !== 'string' || !v.testCommand.trim()) return null;
+  return {
+    testCommand: v.testCommand,
+    timeoutSec: typeof v.timeoutSec === 'number' && v.timeoutSec > 0 ? v.timeoutSec : undefined,
+    outputLimitBytes: typeof v.outputLimitBytes === 'number' && v.outputLimitBytes > 0 ? v.outputLimitBytes : undefined,
+  };
 }
 
 /** Read the TRACKED `coco.config.json` at the repo root (NOT `.coco/`, which is git-ignored runtime
@@ -55,8 +67,50 @@ export function verifyTestCommandChange(repo: string, base: string, head = 'HEAD
 export const VERIFY_TEST_COMMAND_CHANGED_WARNING =
   'verify.testCommand differs between base and HEAD — verify ran the branch version, so review should confirm this verification-policy change';
 
+export const VERIFY_TEST_COMMAND_CHANGE_ACK =
+  'verify.testCommand changed in this goal. Human merge requires explicit acknowledgement: `coco merge --goal <id> --ack-verify-policy-change`';
+
 export const VERIFY_NOT_CONFIGURED_WARNING =
   'coco.config.json has no verify.testCommand set — coco runs this itself at the verify gate (there is no agent fallback), so configure it before you get there';
+
+// --- Workflow policy (coco.config.json → `workflow`) ---
+
+function parseWorkflowConfig(raw: string): WorkflowConfig {
+  const cfg = asObject(parseJson(raw));
+  const w = asObject(cfg?.workflow);
+  const baseBranch = typeof w?.baseBranch === 'string' && w.baseBranch.trim() ? w.baseBranch.trim() : undefined;
+  return { ...(baseBranch ? { baseBranch } : {}) };
+}
+
+export function readWorkflowConfig(repo: string): WorkflowConfig {
+  const p = join(repo, 'coco.config.json');
+  if (!existsSync(p)) return {};
+  return parseWorkflowConfig(readFileSync(p, 'utf8'));
+}
+
+function localRefExists(repo: string, ref: string): boolean {
+  return tryGit(repo, ['rev-parse', '--verify', '--quiet', ref]).ok;
+}
+
+/** Resolve the branch a new goal should fork from. Config wins; otherwise prefer the repo's default
+ * remote branch, then common local defaults, then the current branch. */
+export function resolveBaseBranch(repo: string): string {
+  const configured = readWorkflowConfig(repo).baseBranch;
+  if (configured) return configured;
+
+  const originHead = tryGit(repo, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
+  if (originHead.ok) {
+    const b = originHead.out.trim().replace(/^origin\//, '');
+    if (b) return b;
+  }
+
+  for (const candidate of ['main', 'master', 'trunk', 'develop']) {
+    if (localRefExists(repo, candidate)) return candidate;
+  }
+
+  const current = tryGit(repo, ['branch', '--show-current']);
+  return current.ok && current.out.trim() ? current.out.trim() : 'main';
+}
 
 // --- Layer 2 auto-merge policy (coco.config.json → `autoMerge`) ---
 
@@ -94,22 +148,33 @@ function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string');
 }
 
-/** Parse the `autoMerge` block, merging partial user policy over defaults. Missing/malformed → defaults. */
+function uniq(xs: string[]): string[] {
+  return [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
+}
+
+/** Parse the `autoMerge` block. User globs are ADDITIVE by default so a partial config cannot
+ * accidentally relax coco's conservative defaults; explicit `replaceDefault*Globs:true` is required
+ * for replacement, and `.coco/**` + `coco.config.json` still remain always-sensitive in autoMergeRisk. */
 function parseAutoMergeConfig(raw: string): AutoMergeConfig {
-  try {
-    const a = (JSON.parse(raw) as { autoMerge?: Partial<AutoMergeConfig> })?.autoMerge;
-    if (!a || typeof a !== 'object') return DEFAULT_AUTO_MERGE_CONFIG;
-    return {
-      maxChangedLines:
-        typeof a.maxChangedLines === 'number' && a.maxChangedLines > 0
-          ? Math.floor(a.maxChangedLines)
-          : DEFAULT_AUTO_MERGE_CONFIG.maxChangedLines,
-      sensitiveGlobs: isStringArray(a.sensitiveGlobs) ? a.sensitiveGlobs : DEFAULT_AUTO_MERGE_CONFIG.sensitiveGlobs,
-      testGlobs: isStringArray(a.testGlobs) ? a.testGlobs : DEFAULT_AUTO_MERGE_CONFIG.testGlobs,
-    };
-  } catch {
-    return DEFAULT_AUTO_MERGE_CONFIG;
-  }
+  const cfg = asObject(parseJson(raw));
+  const a = asObject(cfg?.autoMerge);
+  if (!a) return DEFAULT_AUTO_MERGE_CONFIG;
+
+  const sensitiveRaw = isStringArray(a.sensitiveGlobs) ? a.sensitiveGlobs : [];
+  const sensitiveAdd = isStringArray(a.additionalSensitiveGlobs) ? a.additionalSensitiveGlobs : [];
+  const testRaw = isStringArray(a.testGlobs) ? a.testGlobs : [];
+  const testAdd = isStringArray(a.additionalTestGlobs) ? a.additionalTestGlobs : [];
+  const replaceSensitive = a.replaceDefaultSensitiveGlobs === true;
+  const replaceTests = a.replaceDefaultTestGlobs === true;
+
+  return {
+    maxChangedLines:
+      typeof a.maxChangedLines === 'number' && a.maxChangedLines > 0
+        ? Math.floor(a.maxChangedLines)
+        : DEFAULT_AUTO_MERGE_CONFIG.maxChangedLines,
+    sensitiveGlobs: uniq([...(replaceSensitive ? [] : DEFAULT_AUTO_MERGE_CONFIG.sensitiveGlobs), ...sensitiveRaw, ...sensitiveAdd]),
+    testGlobs: uniq([...(replaceTests ? [] : DEFAULT_AUTO_MERGE_CONFIG.testGlobs), ...testRaw, ...testAdd]),
+  };
 }
 
 /** Read the auto-merge policy as committed AT `ref` (always the goal BASE, never HEAD) so a branch
