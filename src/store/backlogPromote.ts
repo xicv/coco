@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { looksLikeBacklogHeading } from '../backlog.js';
 
 export interface BacklogTaskInput {
   id: string;
@@ -32,6 +33,16 @@ export function appendBacklogTask(repo: string, task: BacklogTaskInput): void {
   if (!['high', 'medium', 'low'].includes(priority)) throw new Error(`coco-store: priority must be high|medium|low`);
   const title = task.title.replace(/\s+/g, ' ').trim(); // single-line heading
 
+  // The body is appended raw after the yaml fence — guard it so it can't corrupt the backlog: reject
+  // a line that would parse as a node heading (`### id — title`), or unbalanced code fences that would
+  // desync the parser's fence tracking. (Applies to every promote caller, incl. coco-goal.)
+  if (task.body) {
+    const lines = task.body.split('\n');
+    const heading = lines.find((l) => looksLikeBacklogHeading(l));
+    if (heading) throw new Error(`coco-store: task body must not contain a backlog node heading ('### id — title') — it would corrupt the backlog. Offending line: ${heading.trim()}`);
+    if (lines.filter((l) => /^\s*(```|~~~)/.test(l)).length % 2 !== 0) throw new Error('coco-store: task body has an unbalanced code fence (```/~~~), which would corrupt backlog parsing');
+  }
+
   const p = backlogPath(repo);
   const existing = existsSync(p) ? readFileSync(p, 'utf8') : '';
   const dup = existing.split('\n').some((l) => l.trim() === `id: ${task.id}`);
@@ -50,10 +61,7 @@ export function appendBacklogTask(repo: string, task: BacklogTaskInput): void {
     // JSON-quoted flow sequence (valid YAML) — keeps arbitrary path text on one line, no heading injection.
     ...(task.paths?.length ? [`paths: ${JSON.stringify(task.paths)}`] : []),
     '```',
-    // KNOWN LIMITATION (all promote callers, pre-existing): the body is appended raw, so a body line
-    // matching the node heading `### id — title` would create a phantom backlog node. Not specific to
-    // coco-improve; tracked as a follow-up (fence/reject such lines).
-    ...(task.body?.trim() ? [task.body.trim()] : []),
+    ...(task.body?.trim() ? [task.body.trim()] : []), // validated above — no node heading / unbalanced fence
   ].join('\n');
 
   const sep = existing.length === 0 ? '' : existing.endsWith('\n\n') ? '' : existing.endsWith('\n') ? '\n' : '\n\n';

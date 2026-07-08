@@ -11,6 +11,15 @@ import { commit, tmpRepo } from './helpers.js';
 
 const md = (...lines: string[]) => lines.join('\n');
 
+test('promote rejects a task body that would corrupt the backlog (node heading / unbalanced fence)', () => {
+  const repo = tmpRepo();
+  storeInit(repo);
+  expect(() => storePromote(repo, { id: 'task-x', title: 'x', body: 'ok\n### evil — phantom\nmore' })).toThrow(/node heading/);
+  expect(() => storePromote(repo, { id: 'task-y', title: 'y', body: 'text\n```\nunclosed' })).toThrow(/unbalanced/);
+  // a normal body — a plain `### Steps` (no — separator) and a BALANCED code fence — is fine
+  expect(() => storePromote(repo, { id: 'task-z', title: 'z', body: '### Steps\ndo it\n```\ncode\n```' })).not.toThrow();
+});
+
 test('init creates .coco-store + roadmap and ignores local data (roadmap stays tracked)', () => {
   const repo = tmpRepo();
   storeInit(repo);

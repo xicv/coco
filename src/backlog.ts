@@ -27,6 +27,13 @@ export interface PublicBacklogNode {
 }
 
 const HEADING_LINE = /^###\s+(\S+)\s+[—-]\s+(.+?)\s*$/;
+
+/** Would this line parse as a backlog NODE heading (`### id — title`)? Emitters reject task bodies
+ * that contain one so a body can't inject a phantom node. (A plain `### Steps` subheading — no
+ * `—`/`-` separator — does NOT match and is fine.) */
+export function looksLikeBacklogHeading(line: string): boolean {
+  return HEADING_LINE.test(line);
+}
 const YAML_FENCE = /```ya?ml[^\n]*\n([\s\S]*?)\n```/;
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const BODY_MAX = 4000;
