@@ -8,6 +8,7 @@ import { cocoDir, goalsDir } from '../paths.js';
  * placeholder (empty → parses to no verify config → goal status surfaces a non-blocking warning
  * until set), so the verify gate is discoverable at init time rather than after plan/implement/review.
  * The `//` keys are inline doc notes (JSON has no comments); the config parser ignores unknown keys.
+ * `workflow.baseBranch` controls what branch new goals fork from; init-created repos use `main`.
  * The `autoMerge` block is the Layer 2 policy (only consulted when a goal opts in via
  * `coco goal start --auto-merge`); it's scaffolded at the code defaults so it's discoverable/tunable. */
 const STARTER_COCO_CONFIG = {
@@ -17,7 +18,11 @@ const STARTER_COCO_CONFIG = {
     timeoutSec: 600,
     outputLimitBytes: 65536,
   },
-  '// autoMerge': 'Only used when a goal opts in (coco goal start --auto-merge). Policy is read at the goal BASE ref; auto-merge is blocked on sensitive-glob paths, diffs over maxChangedLines, or diffs with no test files. coco.config.json is ALWAYS sensitive (self-tamper guard) regardless of this list.',
+  '// workflow': 'New goals branch from workflow.baseBranch. If unset, coco uses the repo default branch (origin/HEAD, then main/master/trunk/develop, then current branch).',
+  workflow: {
+    baseBranch: 'main',
+  },
+  '// autoMerge': 'Only used when a goal opts in (coco goal start --auto-merge). User sensitiveGlobs/testGlobs are additive by default; set replaceDefault*Globs only when you intentionally replace defaults. coco.config.json is ALWAYS sensitive (self-tamper guard) regardless of this list.',
   autoMerge: DEFAULT_AUTO_MERGE_CONFIG,
 };
 
