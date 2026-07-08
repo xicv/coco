@@ -93,6 +93,28 @@ test('goal clear cancels the active goal', () => {
   expect(readGoal(goalPath(repo, id)).state).toBe('cancelled');
 });
 
+test('human merge requires explicit acknowledgement when verify.testCommand changed', () => {
+  const repo = tmpRepo();
+  initRepo(repo);
+  writeFileSync(join(repo, 'coco.config.json'), JSON.stringify({ verify: { testCommand: 'pnpm test' } }));
+  g(repo, ['add', 'coco.config.json']);
+  g(repo, ['commit', '-m', 'base verify command']);
+  const id = goalStart(repo, { objective: 'policy change', maxFixRounds: 3, acceptanceChecks: [] }).goalId;
+  goalRecord(repo, { goal: id, phase: 'plan', expectedSha: headSha(repo) });
+  writeFileSync(join(repo, 'f.txt'), 'x\n');
+  writeFileSync(join(repo, 'coco.config.json'), JSON.stringify({ verify: { testCommand: 'true' } }));
+  g(repo, ['add', '-A']);
+  g(repo, ['commit', '-m', 'work and verify policy change']);
+  goalRecord(repo, { goal: id, phase: 'implement', expectedSha: headSha(repo) });
+  goalRecord(repo, { goal: id, phase: 'review', verdict: 'clean', expectedSha: headSha(repo) });
+  goalRecord(repo, { goal: id, phase: 'verify', verdict: 'pass', expectedSha: headSha(repo) });
+
+  const blocked = mergeGoal(repo, id);
+  expect(blocked.merged).toBe(false);
+  expect(blocked.reason).toMatch(/ack-verify-policy-change/);
+  expect(mergeGoal(repo, id, { ackVerifyPolicyChange: true }).merged).toBe(true);
+});
+
 // --- Layer 2 auto-merge ---
 
 test('autoMergeGoal fast-forwards and marks achieved on a green, low-risk diff with consent', () => {
