@@ -1,0 +1,14 @@
+# Copy the relevant blocks into ~/.codex/config.toml.
+# Keep this file secret-free: never put tokens, cookies, or browser profile data here.
+
+[mcp_servers.coco]
+command = "coco-mcp"
+args = []
+
+# Oracle is required for the full coco-loop plan/review gate.
+# Replace command/args with the Oracle MCP entrypoint you installed locally.
+# Leave this block out until your Oracle setup is verified.
+#
+# [mcp_servers.oracle]
+# command = "oracle"
+# args = ["mcp"]
