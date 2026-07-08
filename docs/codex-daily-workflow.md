@@ -11,11 +11,25 @@ This guide is the practical path for using coco every day from Codex.app.
    pnpm build
    ```
 
-2. Configure the coco MCP server in Codex. Start from `.codex/config.toml.example` and copy the relevant blocks into `~/.codex/config.toml`.
+2. Dry-run the Codex setup helper:
 
-3. Install the skills in your agent skills directory. Keep the installed skills in sync with this repository when developing coco itself.
+   ```sh
+   coco setup codex
+   ```
 
-4. Run:
+   It reports the `~/.codex/config.toml` MCP change and the skill directories it would sync into `~/.agents/skills`.
+
+3. Apply the setup when the dry-run looks right:
+
+   ```sh
+   coco setup codex --apply
+   ```
+
+   You can override paths with `--config <path>` and `--skills-dir <path>`.
+
+4. Configure Oracle MCP. `.codex/config.toml.example` intentionally leaves Oracle as a local placeholder because different machines install Oracle differently.
+
+5. Run:
 
    ```sh
    coco doctor
@@ -64,7 +78,15 @@ Use `--auto` only when you intentionally grant forward consent for this one goal
 $coco-loop --auto <objective>
 ```
 
-Auto-merge is still gated by clean review, coco-owned verify, base ancestry, risk policy, and per-goal consent. Risk fallback returns to the human merge path.
+Auto-merge is still gated by clean review, coco-owned verify, base ancestry, risk policy, unchanged verification policy, and per-goal consent. Risk or verify-policy fallback returns to the human merge path.
+
+## Base branch
+
+New goals branch from `workflow.baseBranch` in `coco.config.json` when set. Otherwise coco resolves the repo default branch (`origin/HEAD`, then `main`/`master`/`trunk`/`develop`, then the current branch). Use an explicit base only for unusual work:
+
+```sh
+coco goal start --objective "..." --base release/1.2
+```
 
 ## Human merge checkpoint
 
@@ -72,6 +94,12 @@ The normal loop ends at `merge-gate`. The agent should present the exact command
 
 ```sh
 coco merge --goal <goalId>
+```
+
+If the goal changed `verify.testCommand`, coco refuses the default merge and requires the human to approve the explicit policy acknowledgement:
+
+```sh
+coco merge --goal <goalId> --ack-verify-policy-change
 ```
 
 Approving that exact command is the merge consent. Do not approve blanket or always-allow merge behavior.
@@ -94,12 +122,18 @@ Before a branch is ready for review, run:
 pnpm ci
 ```
 
-For referee-critical changes, also run targeted tests for the exact invariant being changed or protected.
+`pnpm ci` runs typecheck, tests, the deterministic `coco eval` safety fixtures, and build. For referee-critical changes, also run targeted tests for the exact invariant being changed or protected.
+
+## Privacy and platform notes
+
+- Read `docs/privacy-model.md` before sending roadmap/background material to Oracle.
+- Read `docs/platform-support.md` before relying on non-macOS/Linux behavior.
 
 ## Troubleshooting checklist
 
 - `coco doctor` reports `oracle MCP` missing: configure Oracle before plan/review gates.
 - `goal status` warns about `verify.testCommand`: set `verify.testCommand` in committed `coco.config.json`.
+- `merge` refuses with `ack-verify-policy-change`: verify policy changed in the goal diff; inspect it, then approve the explicit acknowledgement command only if intended.
 - `health` reports `review-unavailable`: fix Oracle login/wiring, then resume with `coco_goal_op_clear`.
 - `health` reports `stalled`: inspect the current `nextAction`; do not guess the phase from chat memory.
 - Verify is stuck running: use `coco doctor clean` for old terminal/orphaned verify runs; do not delete live goal state.
